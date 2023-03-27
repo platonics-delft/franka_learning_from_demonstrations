@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""
+Playback of trajectories and storing them into a databaseself.
+"""
+from Learning_from_Demonstration import Learning_from_Demonstration
+import sys
+import os
+import rospy
+from timeit import default_timer as timer
+from datetime import timedelta
+
+if __name__ == '__main__':
+    try:
+        arg1 = int(sys.argv[1])
+    except IndexError:
+        print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
+        sys.exit(1)
+    
+    if arg1:
+        faster = "_faster"
+    else:
+        faster = ""
+    start_time0 = timer()
+    lfd = Learning_from_Demonstration()
+    lfd.load("icra_blue_button")
+    try:
+        lfd.execute(spiral_flag=0)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_time0
+    blue_button_time = timedelta(seconds=elapsed_time)
+    
+    start_key = timer()
+    lfd.load("icra_key_thur" + faster)
+    try:
+        lfd.execute(spiral_flag=1)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_key
+    key_time = timedelta(seconds=elapsed_time)
+    
+    start_battery_case = timer()
+    lfd.load("icra_battery_case_thur_2" + faster)
+    try:
+        lfd.execute(spiral_flag=0)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_battery_case
+    battery_case_time = timedelta(seconds=elapsed_time)
+
+    start_yellow_eject = timer()
+    lfd.load("icra_battery_eject_yellow_2_corrected" + faster)
+    try:
+        lfd.execute(spiral_flag=0)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_yellow_eject
+    yellow_eject_time = timedelta(seconds=elapsed_time)
+    
+    start_yellow_pick = timer()
+    lfd.load("icra_battery_pick_yellow" + faster)
+    try:
+        lfd.execute(spiral_flag=1)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_yellow_pick
+    yellow_pick_time = timedelta(seconds=elapsed_time)
+
+    start_blue_eject = timer()
+    lfd.load("icra_battery_eject_blue_2" + faster)
+    try:
+        lfd.execute(spiral_flag=0)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_blue_eject
+    blue_eject_time = timedelta(seconds=elapsed_time)
+
+    start_blue_pick = timer()
+    lfd.load("icra_battery_pick_blue_2" + faster)
+    try:
+        lfd.execute(spiral_flag=1)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_blue_pick
+    blue_pick_time = timedelta(seconds=elapsed_time)
+
+    start_ethernet_time = timer()
+    lfd.load("icra_ethernet_push_more" + faster)
+    try:
+        lfd.execute(spiral_flag=1)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_ethernet_time
+    ethernet_time = timedelta(seconds=elapsed_time)
+    
+    start_red_time = timer()
+    lfd.load("icra_red_button" + faster)
+    try:
+        lfd.execute(spiral_flag=0)
+    except rospy.ROSInterruptException:
+        pass
+    elapsed_time = timer() - start_red_time
+    red_button_time = timedelta(seconds=elapsed_time)
+    final_time = timedelta(seconds=timer() - start_time0)
+    print(f"{blue_button_time}\n{key_time}\n{battery_case_time}\n{yellow_eject_time}\n{yellow_pick_time}\n{blue_eject_time}\n{blue_pick_time}\n{ethernet_time}\n{red_button_time}\n{final_time}")
+
+
+

@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+'''
+@Author: Mariano Ramirez, Stan Zwinkels, Xinjie (Richard) Liu
+@Date: 2022-4-25 16:46:30
+@LastEditTime: 2022-5-19 17:51:32
+@Description: communication node of the find_object_2d and board_detector
+'''
+
+import rospy
+from geometry_msgs.msg import PoseStamped, WrenchStamped, PointStamped, QuaternionStamped, Pose, TransformStamped
+from std_msgs.msg import Float32MultiArray, Bool
+from sensor_msgs.msg import JointState, PointCloud2
+import numpy as np
+import quaternion
+import time
+import math
+import dynamic_reconfigure.client
+from pyquaternion import Quaternion
+from sympy import Point, Line
+from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
+from task_board_localization.srv import PointDetect, PointDetectRequest, PointDetectResponse
+import sys
+import rospkg
+import pdb
+
+class BoardDetector():
+    '''
+    a wrapper class for board detection
+    '''
+    def __init__(self):
+        self.r = rospy.Rate(100)
+        self.rospack = rospkg.RosPack()
+        self.package_path = self.rospack.get_path("task_board_localization")
+        self.force_threshold = rospy.get_param('board_touch/force_threshold', 15)
+        self.board_width = rospy.get_param('board_touch/width', 0.14)
+        self.board_length = rospy.get_param('board_touch/length', 0.26)
+        self.board_height = rospy.get_param('board_touch/height', 0.09)
+        self.clearance = rospy.get_param('board_touch/clearance', 0.07)
+        self.K_pos = rospy.get_param('stiffness/K_pos', 600)
+        self.K_z = rospy.get_param('stiffness/K_z', 2000)
+        self.K_ori = rospy.get_param('stiffness/K_ori', 50)
+        self.K_ori_z = 40
+        self.trans_ref_guess = np.array(rospy.get_param('pose_box_ref_guess/trans_ref_guess', '[0.47, 0.1500, 0.1]'))
+        self.rot_ref_guess = list_2_quaternion(rospy.get_param('pose_box_ref_guess/rot_ref_guess', '[0.7148849557796, 0, 0, -0.699187185237258]'))
+        self.trans_cam = np.array(rospy.get_param('transform_cam/trans_cam', '[0.483, 0.021, 0.58]'))
+        self.rot_cam = list_2_quaternion(rospy.get_param('transform_cam/rot_cam', '[0.006, 0.734, -0.679, 0.006]'))
+        cartesian_pose_topic = rospy.get_param('cartesian_pose_topic_name', '/cartesian_pose')
+        force_torque_ext_topic = rospy.get_param('force_torque_ext_topic', '/force_torque_ext')
+        equilibrium_pose_topic = rospy.get_param('equilibrium_pose_topic', '/equilibrium_pose')
+        pose_ref_2_new_topic = rospy.get_param('pose_ref_2_new_topic', '/pose_ref_2_new')
+
+        self.sub = rospy.Subscriber(cartesian_pose_topic, PoseStamped, self.update_pose)
+        self.force_feedback_sub = rospy.Subscriber(force_torque_ext_topic, WrenchStamped, self.force_feedback_checker)
+        self.joint_states_sub = rospy.Subscriber("/joint_states", JointState, self.joint_states_callback)
+        # self.transform_icp_sub = rospy.Subscriber('/trans_rot', PoseStamped, self.transform_icp_callback)
+        self.joint_states_sub = rospy.Subscriber("/joint_states", JointState, self.joint_states_callback)
+
+        self.goal_pub = rospy.Publisher(equilibrium_pose_topic, PoseStamped, queue_size=0)
+        self.pose_ref_2_new_pub = rospy.Publisher(pose_ref_2_new_topic, PoseStamped, queue_size=0)
+        self.configuration_pub = rospy.Publisher('/equilibrium_confguration', Float32MultiArray, queue_size=0)
+
+        self.pose_ref_2_new = PoseStamped()
+        self.force_feedback = None
+        self.torque_z = None
+        self.curr_pos = np.empty([3])
+        self.curr_ori = np.empty([3])
+        self.points_x = []
+        self.points_y = []
+        self.trajz = []
+        self.ori_x = np.quaternion(1, 0, 0, 0)
+        self.ori_y = np.quaternion(1, 0, 0, 0)
+        self.coll_points = [np.array([[0, 0, 0]])]
+        self.coll_points_to_save = []
+        self.coll_oris = [np.array([[0, 0, 0, 0]])]
+        self.coll_oris_to_save = []
+
+        self.pose_icp = PoseStamped()
+        self.pose_icp.pose.orientation.w = 1
+        self.pose_box = PoseStamped()
+
+    def set_stiffness(self, k_t1, k_t2, k_t3, k_r1, k_r2, k_r3, k_ns):
+
+        set_K = dynamic_reconfigure.client.Client('/dynamic_reconfigure_compliance_param_node', config_callback=None)
+        set_K.update_configuration({"translational_stiffness_X": k_t1})
+        set_K.update_configuration({"translational_stiffness_Y": k_t2})
+        set_K.update_configuration({"translational_stiffness_Z": k_t3})
+        set_K.update_configuration({"rotational_stiffness_X": k_r1})
+        set_K.update_configuration({"rotational_stiffness_Y": k_r2})
+        set_K.update_configuration({"rotational_stiffness_Z": k_r3})
+        set_K.update_configuration({"nullspace_stiffness": k_ns})
+        
+    def set_configuration(self, joint):
+        joint_des = Float32MultiArray()
+        joint_des.data = np.array(joint).astype(np.float32)
+        self.configuration_pub.publish(joint_des) 
+
+    def joint_states_callback(self, data):
+        self.curr_joint = data.position[:7]
+
+    def update_pose(self, data):
+        self.curr_pos = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+        self.curr_ori = np.array([data.pose.orientation.w, data.pose.orientation.x, data.pose.orientation.y, data.pose.orientation.z])
+
+    def force_feedback_checker(self, feedback):
+        force = feedback.wrench.force
+        torque = feedback.wrench.torque
+        self.torque_z = torque.z
+        self.force_feedback = np.linalg.norm(np.array([force.x, force.y, force.z]))
+        if self.force_feedback > self.force_threshold:
+            # print(self.force_feedback)
+            # print("force exceeded,current point is", self.curr_pos, self.curr_ori)
+            # print("current point ", self.curr_pos)
+            self.coll_points.append(self.curr_pos)
+            # print(self.coll_points, self.curr_pos)
+            self.coll_oris.append(self.curr_ori)
+            # print(self.coll_oris, self.curr_ori)
+
+    # def transform_icp_callback(self, pose_icp):
+       # self.pose_icp = pose_icp
+        # self.pose_icp.pose.position.z = 0
+
+    # TODO this would be much better in a config file since the points are now fixed
+    # points defined with respect to local initially detected base frame
+    def get_trajectories(self):
+        # For x-axis approach we just want the orientation to be aligned with local frame
+        self.ori_x = np.quaternion(0, 1, 0, 0)
+        # For y-axis orientation just a 90 deg rotation about z-axis to touch with same flat side of flange
+        # These orientations are fixed throughout approach
+        self.ori_y = np.quaternion(0, np.sqrt(0.5), np.sqrt(0.5), 0)
+
+        # I'm assuming we are putting the coordinate systems in a corner,
+        # and that x-axis goes along length and y along width
+
+        # Point outside and above box
+        p1x = [-self.clearance, self.board_width * 0.5, self.clearance]
+        p2x = [p1x[0], p1x[1], -self.board_height*0.4]
+        p3x = [0.01, p2x[1], p2x[2]]
+
+        self.points_x = [p1x, p2x, p3x]
+        self.poses_x = []
+        self.poses_x[:] = [array_quat_2_pose(point_x, self.ori_x) for point_x in self.points_x]
+
+        p1y = [self.board_length*0.65, -self.clearance, self.clearance]
+        p2y = [p1y[0], p1y[1], -self.board_height*0.4]
+        p3y = [p2y[0], 0.01, p2y[2]]
+
+        self.points_y = [p1y, p2y, p3y]
+        self.poses_y = []
+        self.poses_y[:] = [array_quat_2_pose(point_y, self.ori_y) for point_y in self.points_y]
+
+        return
+
+    def execute_trajectory(self, poses, x_coll):
+        for pose in poses:
+            if pose == poses[-1]: self.set_stiffness(self.K_pos, self.K_pos, self.K_z, self.K_ori, self.K_ori, 0.0, 0.0)
+            else:      self.set_stiffness(self.K_pos, self.K_pos, self.K_z, self.K_ori, self.K_ori, self.K_ori_z, 0.0)
+
+            self.go_to_pose(pose)
+        pose_further = poses[-1]
+        while self.force_feedback <= 5:
+            print("force feedback", self.force_feedback)
+            if x_coll:
+                x_axis_vector = self.transform[:2, 0]
+                pose_further.pose.position.x += 0.01 * x_axis_vector[0]
+                pose_further.pose.position.y += 0.01 * x_axis_vector[1]
+                self.go_to_pose(pose_further)
+            else:
+                y_axis_vector = self.transform[:2, 1]
+                pose_further.pose.position.x += 0.01 * y_axis_vector[0]
+                pose_further.pose.position.y += 0.01 * y_axis_vector[1]
+                self.go_to_pose(pose_further)
+
+        rospy.sleep(6)    
+        self.coll_points_to_save.append(self.coll_points[-1])
+        self.coll_oris_to_save.append(self.coll_oris[-1])
+
+        self.go_to_pose(poses[0])
+        self.set_stiffness(0, 0, 0, 0, 0, 0, 40)
+        rospy.sleep(3.0)
+        self.set_stiffness(self.K_pos, self.K_pos, self.K_z, self.K_ori, self.K_ori, self.K_ori_z, 0.0)
+
+    
+    def execute_touch(self, offline):
+        self.get_trajectories()
+        self.transform_ref_filename = rospy.get_param("ref_box_pose_filename")
+
+        # 'Offline' you manually input a guess of the box pose to then save an accurate pose from the touch (to have
+        # the reference pose of the recordings), 'online' the perception is used to get the 'initial guess'
+        if offline:
+            pose_box_ref_guess = array_quat_2_pose(self.trans_ref_guess, self.rot_ref_guess)
+            self.transform = pose_st_2_transformation(pose_box_ref_guess)
+        else:
+            pose_box_ref_guess = array_quat_2_pose(self.trans_ref_guess, self.rot_ref_guess)
+            transform_box_guess = pose_st_2_transformation(pose_box_ref_guess)
+            pose_cam = array_quat_2_pose(self.trans_cam, self.rot_cam)
+            transform_cam = pose_st_2_transformation(pose_cam)
+            self.pose_icp = rospy.wait_for_message("/trans_rot", PoseStamped)
+            transform_icp = pose_st_2_transformation(self.pose_icp)
+            transform_ref = np.load(f"{self.package_path}/models/{self.transform_ref_filename}")
+            self.transform = transform_cam @ transform_icp @ np.linalg.inv(transform_cam) @ transform_ref
+            #pdb.set_trace()
+
+        poses_x_transformed = []
+        poses_x_transformed[:] = [transform_pose(pose_x, self.transform) for pose_x in self.poses_x]
+        self.execute_trajectory(poses_x_transformed, x_coll = True)
+
+        poses_y_transformed = []
+        poses_y_transformed[:] = [transform_pose(pose_y, self.transform) for pose_y in self.poses_y]
+        self.execute_trajectory(poses_y_transformed, x_coll = False)
+        
+        file_suffix = rospy.get_param("filenames_suffix")
+        np.save(f"{self.package_path}/models/coll_points_{file_suffix}", self.coll_points_to_save)
+        np.save(f"{self.package_path}/models/coll_oris_{file_suffix}", self.coll_oris_to_save)
+        self.pose_box = self.box_pose_from_2_poses(self.coll_points_to_save, self.coll_oris_to_save)
+        transform_box = pose_st_2_transformation(self.pose_box)
+        np.save(f"{self.package_path}/models/transform_box_{file_suffix}", transform_box)
+
+
+        return
+
+    # basically copied from lfd, should we import or inherit instead?
+    def go_to_pose(self, goal_pose):
+        # the goal pose should be of type PoseStamped. E.g. goal_pose=PoseStampled()
+        start = self.curr_pos
+        start_ori = self.curr_ori
+        goal_ = np.array([goal_pose.pose.position.x, goal_pose.pose.position.y, goal_pose.pose.position.z])
+        # interpolate from start to goal with attractor distance of approx 1 cm
+        print("start is here", start, "goal is here", goal_)
+        squared_dist = np.sum(np.subtract(start, goal_) ** 2, axis=0)
+        dist = np.sqrt(squared_dist)
+        print("dist", dist)
+        interp_dist = 0.001  # [m]
+        step_num_lin = math.floor(dist / interp_dist)
+
+        print("num of steps linear", step_num_lin)
+
+        q_start = np.quaternion(start_ori[0], start_ori[1], start_ori[2], start_ori[3])
+        print("q_start", q_start)
+        q_goal = np.quaternion(goal_pose.pose.orientation.w, goal_pose.pose.orientation.x, goal_pose.pose.orientation.y,
+                               goal_pose.pose.orientation.z)
+        print("q_goal", q_goal)
+        inner_prod = q_start.x * q_goal.x + q_start.y * q_goal.y + q_start.z * q_goal.z + q_start.w * q_goal.w
+        if inner_prod < 0:
+            q_start.x = -q_start.x
+            q_start.y = -q_start.y
+            q_start.z = -q_start.z
+            q_start.w = -q_start.w
+        inner_prod = q_start.x * q_goal.x + q_start.y * q_goal.y + q_start.z * q_goal.z + q_start.w * q_goal.w
+        theta = np.arccos(np.abs(inner_prod))
+        print(theta)
+        interp_dist_polar = 0.002
+        step_num_polar = math.floor(theta / interp_dist_polar)
+
+        print("num of steps polar", step_num_polar)
+
+        step_num = np.max([step_num_polar, step_num_lin])
+
+        print("num of steps", step_num)
+        x = np.linspace(start[0], goal_pose.pose.position.x, step_num)
+        y = np.linspace(start[1], goal_pose.pose.position.y, step_num)
+        z = np.linspace(start[2], goal_pose.pose.position.z, step_num)
+
+        step_num = int(step_num)
+
+        goal = PoseStamped()
+        goal.header.frame_id = "panda_link0"
+
+        goal.pose.position.x = x[0]
+        goal.pose.position.y = y[0]
+        goal.pose.position.z = z[0]
+
+        quat = np.slerp_vectorized(q_start, q_goal, 0.0)
+        goal.pose.orientation.x = quat.x
+        goal.pose.orientation.y = quat.y
+        goal.pose.orientation.z = quat.z
+        goal.pose.orientation.w = quat.w
+        self.goal_pub.publish(goal)
+
+
+        goal = PoseStamped()
+        for i in range(step_num):
+
+            now = time.time()
+            goal.header.seq = 1
+            goal.header.stamp = rospy.Time.now()
+            goal.header.frame_id = "panda_link0"
+
+            goal.pose.position.x = x[i]
+            goal.pose.position.y = y[i]
+            goal.pose.position.z = z[i]
+            quat = np.slerp_vectorized(q_start, q_goal, i / step_num)
+            goal.pose.orientation.x = quat.x
+            goal.pose.orientation.y = quat.y
+            goal.pose.orientation.z = quat.z
+            goal.pose.orientation.w = quat.w
+            
+            self.goal_pub.publish(goal)
+            self.r.sleep()
+
+    def box_pose_from_2_poses(self, coll_points, coll_oris):
+        coll_points = np.array(coll_points)
+        coll_oris = np.array(coll_oris)
+        point_x_axis_1 = coll_points[1, :2] # note z-coordinate is 'dropped'
+        point_y_axis_1 = coll_points[0, :2]
+
+        coll_ori_x_axis = quaternion.as_quat_array(coll_oris[1]) # Note x-axis orientation is actually from second collision
+        coll_ori_y_axis = quaternion.as_quat_array(coll_oris[0])
+
+        coll_ori_x_axis_rot = quaternion.as_rotation_matrix(coll_ori_x_axis)
+        coll_ori_y_axis_rot = quaternion.as_rotation_matrix(coll_ori_y_axis)
+
+        x_axis_vector = coll_ori_x_axis_rot[:, 1][:2]
+        y_axis_vector = coll_ori_y_axis_rot[:, 1][:2]
+
+        x_axis_angle = np.arctan2(x_axis_vector[1], x_axis_vector[0])
+
+        ori_quat = quaternion.from_euler_angles(np.array([0, 0, x_axis_angle]))
+
+        def perp(a):
+            b = np.empty_like(a)
+            b[0] = -a[1]
+            b[1] = a[0]
+            return b
+
+        # line segment a given by endpoints a1, a2
+        # line segment b given by endpoints b1, b2
+        # return
+        def seg_intersect(a1, a2, b1, b2):
+            da = a2 - a1
+            db = b2 - b1
+            dp = a1 - b1
+            dap = perp(da)
+            denom = np.dot(dap, db)
+            num = np.dot(dap, dp)
+            return (num / denom.astype(float)) * db + b1
+
+        point_x_axis_2 = point_x_axis_1 + 2 * x_axis_vector
+        point_y_axis_2 = point_y_axis_1 + 2 * y_axis_vector
+
+        intersection = seg_intersect(point_x_axis_1, point_x_axis_2, point_y_axis_1, point_y_axis_2)
+
+        pose_box = array_quat_2_pose(np.array([intersection[0], intersection[1], 0.1]), ori_quat)
+
+        return pose_box
+
+if __name__ == '__main__':
+    
+    rospy.init_node('BoardDetector', anonymous=True)
+    offline = rospy.get_param('with_initial_pose')
+    rospy.loginfo(type(offline))
+    rospy.loginfo(f"Using an initial guess defined by the user {offline}")
+    detector = BoardDetector()
+    time.sleep(1)
+    # Add line with request to the pointcloud server to fill out pose_icp
+    detector.execute_touch(offline)
+    print('two collision poses are\n', detector.coll_points_to_save, detector.coll_oris_to_save)
+    print('box pose is\n', detector.pose_box)
+
+    transform_ref = np.load(f"{detector.package_path}/models/{detector.transform_ref_filename}")
+    transform_new = pose_st_2_transformation(detector.pose_box)
+    transform_ref_2_new = transform_new @ np.linalg.inv(transform_ref)
+    detector.pose_ref_2_new = transformation_2_pose(transform_ref_2_new)
+
+    while not rospy.is_shutdown():
+        detector.pose_ref_2_new_pub.publish(detector.pose_ref_2_new)
+        rospy.sleep(1)
+

@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<launch>
+  <rosparam command="load" file="$(find task_board_localization)/config/visual_board_detection.yaml"/>
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <arg name="filters" value="pointcloud"/>
+  </include>
+  <node pkg="task_board_localization" name="visual_board_detection_server" type="visual_board_detection_server" output="screen"/>
+</launch>
