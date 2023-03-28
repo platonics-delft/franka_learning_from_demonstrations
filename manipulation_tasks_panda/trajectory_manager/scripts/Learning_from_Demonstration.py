@@ -14,7 +14,7 @@ import dynamic_reconfigure.client
 from pynput.keyboard import Listener, KeyCode
 from scipy.signal import savgol_filter
 from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
-
+from franka_gripper.msg import GraspActionGoal, HomingActionGoal, StopActionGoal, MoveActionGoal
 class Learning_from_Demonstration():
     def __init__(self):
         rospy.init_node("learning_node")
@@ -38,7 +38,7 @@ class Learning_from_Demonstration():
         self.recorded_gripper= None
         self.end=False
         self.grip_value=1
-        
+        self.attractor_distance_threshold=0.05
         pose_ref_2_new_topic = rospy.get_param('pose_ref_2_new_topic', '/pose_ref_2_new')
         
         self.pos_sub=rospy.Subscriber("/cartesian_pose", PoseStamped, self.ee_pos_callback) ##### are the subs being used?
@@ -46,8 +46,17 @@ class Learning_from_Demonstration():
         self.pose_ref_2_new_sub = rospy.Subscriber(pose_ref_2_new_topic, PoseStamped, self.pose_ref_2_new_callback)
         self.force_feedback_sub = rospy.Subscriber('/force_torque_ext', WrenchStamped, self.force_feedback_callback)
         self.goal_pub = rospy.Publisher('/equilibrium_pose', PoseStamped, queue_size=0)
-        self.grip_pub = rospy.Publisher('/gripper_online', Float32, queue_size=0)
+        # self.grip_pub = rospy.Publisher('/gripper_online', Float32, queue_size=0)
         self.configuration_pub = rospy.Publisher('/equilibrium_confguration', Float32MultiArray, queue_size=0)
+        self.grasp_pub = rospy.Publisher("/franka_gripper/grasp/goal", GraspActionGoal,
+                                           queue_size=0)
+        self.move_pub = rospy.Publisher("/franka_gripper/move/goal", MoveActionGoal,
+                                           queue_size=0)
+        self.homing_pub = rospy.Publisher("/franka_gripper/homing/goal", HomingActionGoal,
+                                          queue_size=0)
+        self.stop_pub = rospy.Publisher("/franka_gripper/stop/goal", StopActionGoal,
+                                          queue_size=0)
+        
         self.force_feedback = 0.
         self.set_K = dynamic_reconfigure.client.Client('/dynamic_reconfigure_compliance_param_node', config_callback=None)
         self.joint_states_sub = rospy.Subscriber("/joint_states", JointState, self.joint_states_callback)
@@ -58,6 +67,19 @@ class Learning_from_Demonstration():
         self.pose_ref_2_new = None
         ros_pack = rospkg.RosPack()
         self._package_path = ros_pack.get_path('trajectory_manager')
+
+
+        self.move_command=MoveActionGoal()
+        self.grasp_command = GraspActionGoal()
+        self.home_command = HomingActionGoal()
+        self.stop_command = StopActionGoal()
+        self.gripper_width = 0
+        self.move_command.goal.speed=1
+        self.grasp_command.goal.epsilon.inner = 0.1
+        self.grasp_command.goal.epsilon.outer = 0.1
+        self.grasp_command.goal.speed = 0.1
+        self.grasp_command.goal.force = 5
+        self.grasp_command.goal.width = 1
         rospy.sleep(1)
 
     def _on_press(self, key):
@@ -83,20 +105,26 @@ class Learning_from_Demonstration():
         # Close/open gripper
         if key == KeyCode.from_char('c'):
             self.grip_value = 0
-            grip_command = Float32()
-            grip_command.data = self.grip_value
-            self.grip_pub.publish(grip_command)
-            print('pressed c grip_value is ', grip_command.data)
+            # grip_command = Float32()
+            # grip_command.data = self.grip_value
+            # self.grip_pub.publish(grip_command)
+            # print('pressed c grip_value is ', grip_command.data)
+            self.stop_gripper()
+            self.move_gripper(self.grip_value)
         if key == KeyCode.from_char('o'):
             self.grip_value = 1
-            grip_command = Float32()
-            grip_command.data = self.grip_value
-            self.grip_pub.publish(grip_command)
-            print('pressed o grip_value is ', grip_command.data)
+            # grip_command = Float32()
+            # grip_command.data = self.grip_value
+            # self.grip_pub.publish(grip_command)
+            # print('pressed o grip_value is ', grip_command.data)
+            self.stop_gripper()
+            self.attractor_distance_threshold
+            self.move_gripper(self.grip_value)
         if key == KeyCode.from_char('f'):
             self.feedback[3] = 1
         if key == KeyCode.from_char('x'):
             self.spiral = True
+        key=0
 
 
     def ee_pos_callback(self, curr_conf):
@@ -109,6 +137,49 @@ class Learning_from_Demonstration():
     ######## Not currently being used, can be used to specify certain width which the gripper needs to maintain
     def gripper_callback(self, curr_width):
         self.grip_width =curr_width.position[7]+curr_width.position[8]
+
+    def move_gripper(self,width):
+        self.move_command.goal.width=width
+        self.move_pub.publish(self.move_command)
+
+    def grasp_gripper(self, width):
+        if width < 0.07 and self.grasp_command.goal.width != 0:
+            self.grasp_command.goal.width = 0
+            self.grasp_pub.publish(self.grasp_command)
+
+        elif width > 0.07 and self.grasp_command.goal.width != 1:
+            self.grasp_command.goal.width = 1
+            self.grasp_pub.publish(self.grasp_command)
+    
+    def home(self):
+        goal = PoseStamped()
+        goal.header.seq = 1
+        goal.header.stamp = rospy.Time.now()
+        goal.header.frame_id = "map"
+        goal.pose.position.x = 0.6
+        goal.pose.position.y = 0
+        goal.pose.position.z = 0.4
+
+        goal.pose.orientation.w = 0
+        goal.pose.orientation.x = 1
+        goal.pose.orientation.y = 0
+        goal.pose.orientation.z = 0
+
+        ns_msg = [0, 0, 0, -2.4, 0, 2.4, 0]
+
+        self.go_to_pose(goal)
+        self.set_configuration(ns_msg)
+        self.set_K.update_configuration({f'{str(self.name)}_nullspace_stiffness':10})
+
+        rospy.sleep(rospy.Duration(secs=5))
+
+        self.set_K.update_configuration({f'{str(self.name)}_nullspace_stiffness':0})
+
+    def home_gripper(self):
+        self.homing_pub.publish(self.home_command)
+
+    def stop_gripper(self):
+        self.stop_pub.publish(self.stop_command)  
 
     def force_feedback_callback(self, feedback):
         self.force = feedback.wrench.force
@@ -296,8 +367,9 @@ class Learning_from_Demonstration():
         # self.set_stiffness_key()
         # self.set_stiffness(100, 100, 100, 5, 5, 5, 100)
         # null_space_reset = False
-
-        for i in range (self.recorded_traj.shape[1]):
+        i=0
+        while i <( self.recorded_traj.shape[1]):
+        # for i in range (self.recorded_traj.shape[1]):
             
             # if i > 100 and not null_space_reset:
             #     self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
@@ -354,16 +426,22 @@ class Learning_from_Demonstration():
                     self.recorded_traj[0, i:] += offset_correction[0]
                     self.recorded_traj[1, i:] += offset_correction[1]
 
-            grip_command = Float32()
+            # grip_command = Float32()
 
-            grip_command.data = self.recorded_gripper[0][i]
+            # grip_command.data = self.recorded_gripper[0][i]
             
 
-            self.grip_pub.publish(grip_command)
-            if (np.abs(grip_command_old-grip_command.data))>0.5:
+            # self.grip_pub.publish(grip_command)
+            
+            # if (np.abs(grip_command_old-grip_command.data))>0.5:
+            #     time.sleep(0.1)
+            if (np.abs(self.recorded_gripper[0][max(0,i-1)]-self.recorded_gripper[0][i]))>0.5:
+                self.stop_gripper()
+                self.move_gripper(self.recorded_gripper[0][i])
                 time.sleep(0.1)
 
-            grip_command_old = grip_command.data
+            if (np.linalg.norm(np.array(self.curr_pos)-self.recorded_traj[:,i])) <= self.attractor_distance_threshold:
+                i=i+1
             self.r.sleep()
 
             # Stop playback if at end of trajectory (some indices might be deleted by feedback)
