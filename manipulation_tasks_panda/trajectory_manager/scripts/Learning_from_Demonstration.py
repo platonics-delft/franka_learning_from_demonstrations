@@ -49,10 +49,8 @@ class Learning_from_Demonstration():
 
         
         self.pos_sub=rospy.Subscriber("/cartesian_pose", PoseStamped, self.ee_pos_callback) ##### are the subs being used?
-        self.gripper_sub=rospy.Subscriber("/joint_states", JointState, self.gripper_callback)
         #self.pose_ref_2_new_sub = rospy.Subscriber(pose_ref_2_new_topic, PoseStamped, self.pose_ref_2_new_callback)
         self.transform_icp_sub = rospy.Subscriber('/trans_rot', PoseStamped, self.transform_icp_callback)
-        self.color_image_sub = rospy.Subscriber('camera/color/image_raw', Image, self.color_image_callback)
 
         self.force_feedback_sub = rospy.Subscriber('/force_torque_ext', WrenchStamped, self.force_feedback_callback)
         self.goal_pub = rospy.Publisher('/equilibrium_pose', PoseStamped, queue_size=0)
