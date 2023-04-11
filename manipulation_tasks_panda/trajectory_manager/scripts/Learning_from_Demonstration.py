@@ -41,9 +41,19 @@ class Learning_from_Demonstration():
         self.attractor_distance_threshold=0.05
         pose_ref_2_new_topic = rospy.get_param('pose_ref_2_new_topic', '/pose_ref_2_new')
         
+        self.trans_base_2_hand = np.array([0.308, -0.000, 0.588])
+        self.rot_base_2_hand = list_2_quaternion([-0.002, 1.000, 0.006, -0.002])
+
+        self.trans_hand_2_cam = np.array([0.05073875796492183, -0.03418064441841842, 0.033397])
+        self.rot_hand_2_cam = list_2_quaternion([0.7140855447, 0.005087158, -0.00459640, 0.70002409])
+
+        
         self.pos_sub=rospy.Subscriber("/cartesian_pose", PoseStamped, self.ee_pos_callback) ##### are the subs being used?
         self.gripper_sub=rospy.Subscriber("/joint_states", JointState, self.gripper_callback)
-        self.pose_ref_2_new_sub = rospy.Subscriber(pose_ref_2_new_topic, PoseStamped, self.pose_ref_2_new_callback)
+        #self.pose_ref_2_new_sub = rospy.Subscriber(pose_ref_2_new_topic, PoseStamped, self.pose_ref_2_new_callback)
+        self.transform_icp_sub = rospy.Subscriber('/trans_rot', PoseStamped, self.transform_icp_callback)
+        self.color_image_sub = rospy.Subscriber('camera/color/image_raw', Image, self.color_image_callback)
+
         self.force_feedback_sub = rospy.Subscriber('/force_torque_ext', WrenchStamped, self.force_feedback_callback)
         self.goal_pub = rospy.Publisher('/equilibrium_pose', PoseStamped, queue_size=0)
         # self.grip_pub = rospy.Publisher('/gripper_online', Float32, queue_size=0)
@@ -64,7 +74,10 @@ class Learning_from_Demonstration():
         self.listener.start()
         self.spiral = False
         self.spiraling = False
-        self.pose_ref_2_new = None
+        self.pose_ref_2_new = True
+        
+        self.pose_icp = None
+
         ros_pack = rospkg.RosPack()
         self._package_path = ros_pack.get_path('trajectory_manager')
 
@@ -112,7 +125,7 @@ class Learning_from_Demonstration():
             self.stop_gripper()
             self.move_gripper(self.grip_value)
         if key == KeyCode.from_char('o'):
-            self.grip_value = 1
+            self.grip_value = 0.04
             # grip_command = Float32()
             # grip_command.data = self.grip_value
             # self.grip_pub.publish(grip_command)
@@ -131,12 +144,9 @@ class Learning_from_Demonstration():
         self.curr_pos = np.array([curr_conf.pose.position.x, curr_conf.pose.position.y, curr_conf.pose.position.z])
         self.curr_ori = np.array([curr_conf.pose.orientation.w, curr_conf.pose.orientation.x, curr_conf.pose.orientation.y, curr_conf.pose.orientation.z])
 
-    def pose_ref_2_new_callback(self, pose_ref_2_new):
-        self.pose_ref_2_new = pose_ref_2_new
-
-    ######## Not currently being used, can be used to specify certain width which the gripper needs to maintain
-    def gripper_callback(self, curr_width):
-        self.grip_width =curr_width.position[7]+curr_width.position[8]
+    def transform_icp_callback(self, pose_icp):
+        self.pose_icp = pose_icp
+        self.pose_icp.pose.position.z = 0
 
     def move_gripper(self,width):
         self.move_command.goal.width=width
@@ -150,7 +160,8 @@ class Learning_from_Demonstration():
         elif width > 0.07 and self.grasp_command.goal.width != 1:
             self.grasp_command.goal.width = 1
             self.grasp_pub.publish(self.grasp_command)
-    
+            self.color_image_sub = rospy.Subscriber('camera/color/image_raw', Image, self.color_image_callback)
+
     def home(self):
         goal = PoseStamped()
         goal.header.seq = 1
@@ -232,11 +243,12 @@ class Learning_from_Demonstration():
         if rec_position: 
             self.set_K.update_configuration({"translational_stiffness_X": 0})
             self.set_K.update_configuration({"translational_stiffness_Y": 0})
-            self.set_K.update_configuration({"translational_stiffness_Z": 0})  
+            self.set_K.update_configuration({"translational_stiffness_Z": 0})
         if rec_orientation: 
             self.set_K.update_configuration({"rotational_stiffness_X": 0})
             self.set_K.update_configuration({"rotational_stiffness_Y": 0})
             self.set_K.update_configuration({"rotational_stiffness_Z": 0})
+        self.set_K.update_configuration({"nullspace_stiffness": 0})  
 
         init_pos = self.curr_pos
         vel = 0 ##### Change to a more meaningful name like distance? Trigger could be distance_interval or something.
@@ -354,9 +366,15 @@ class Learning_from_Demonstration():
         start.pose.orientation.y = self.recorded_ori[2][0]
         start.pose.orientation.z = self.recorded_ori[3][0]
         
-        if self.pose_ref_2_new:
-        	transform = pose_st_2_transformation(self.pose_ref_2_new)
-        	start = transform_pose(start, transform)
+        if self.pose_icp:
+            pose_base_2_hand = array_quat_2_pose(self.trans_base_2_hand, self.rot_base_2_hand)
+            pose_hand_2_cam = array_quat_2_pose(self.trans_hand_2_cam, self.rot_hand_2_cam)
+            transform_base_2_hand = pose_st_2_transformation(pose_base_2_hand)
+            transform_hand_2_cam = pose_st_2_transformation(pose_hand_2_cam)
+            self.transform_icp = pose_st_2_transformation(self.pose_icp)
+            transform_base_2_cam = transform_base_2_hand @ transform_hand_2_cam 
+            transform = transform_base_2_cam @ self.transform_icp @ np.linalg.inv(transform_base_2_cam)
+            start = transform_pose(start, transform)
         self.go_to_pose(start)
 
         # desired_joints = np.array(self.curr_joint)
@@ -395,7 +413,7 @@ class Learning_from_Demonstration():
             
             
             
-            if self.pose_ref_2_new:
+            if self.pose_icp:
             	goal = transform_pose(goal, transform)
             
             if np.sum(self.feedback[:3])!=0:
@@ -428,20 +446,22 @@ class Learning_from_Demonstration():
 
             # grip_command = Float32()
 
-            # grip_command.data = self.recorded_gripper[0][i]
+            # grip_command.selfdata = self.recorded_gripper[0][i]
             
 
             # self.grip_pub.publish(grip_command)
             
             # if (np.abs(grip_command_old-grip_command.data))>0.5:
             #     time.sleep(0.1)
-            if (np.abs(self.recorded_gripper[0][max(0,i-1)]-self.recorded_gripper[0][i]))>0.5:
+
+            if (np.abs(self.recorded_gripper[0][max(0,i-1)]-self.recorded_gripper[0][i]))>0.02:
                 self.stop_gripper()
                 self.move_gripper(self.recorded_gripper[0][i])
                 time.sleep(0.1)
 
-            if (np.linalg.norm(np.array(self.curr_pos)-self.recorded_traj[:,i])) <= self.attractor_distance_threshold:
-                i=i+1
+            # recorded_traj_transformed = transform @ self.recorded_traj[:,i]
+            # if (np.linalg.norm(np.array(self.curr_pos)-self.recorded_traj[:,i])) <= self.attractor_distance_threshold:
+            i=i+1
             self.r.sleep()
 
             # Stop playback if at end of trajectory (some indices might be deleted by feedback)
@@ -475,39 +495,6 @@ class Learning_from_Demonstration():
         offset_correction = self.curr_pos - goal_init
 
         return spiral_success, offset_correction
-
-
-    def transform_trajectory(self, transform):
-        # rospy.sleep(1)
-        transf_pose = self.pose_ref_2_new
-
-        trans = np.array([transf_pose.pose.position.x, transf_pose.pose.position.y, transf_pose.pose.position.z])
-        quat_ref_to_new = np.quaternion(transf_pose.pose.orientation.w, transf_pose.pose.orientation.x,
-                            transf_pose.pose.orientation.y, transf_pose.pose.orientation.z)
-
-        rot_matrix = quaternion.as_rotation_matrix(quat_ref_to_new)
-        transform_ref_to_new = np.append(rot_matrix, [[0, 0, 0]], axis=0)
-        transform_ref_to_new = np.append(transform_ref_to_new, [[trans[0]], [trans[1]], [trans[2]], [1]], axis=1)
-
-        for i in range(self.recorded_traj.shape[1]):
-            quat_ori = np.quaternion(self.recorded_ori[0][i], self.recorded_ori[1][i], self.recorded_ori[2][i],
-                                     self.recorded_ori[3][i])
-            # Converting the quaternion to rotation matrix, to make a homogenous transformation and transform the points
-            # with one matrix operation 'transform @ point'
-            point = np.array([self.recorded_traj[0][i], self.recorded_traj[1][i], self.recorded_traj[2][i], 1])
-
-            new_point = transform_ref_to_new @ point
-
-            self.recorded_traj[0][i] = new_point[0]
-            self.recorded_traj[1][i] = new_point[1]
-            self.recorded_traj[2][i] = new_point[2]
-            # Note 'extra' final rotation by q(0, 1, 0, 0) (180 deg about x axis) since we want gripper facing down
-            new_ori = quat_ref_to_new * quat_ori
-
-            self.recorded_ori[0][i] = new_ori.w
-            self.recorded_ori[1][i] = new_ori.x
-            self.recorded_ori[2][i] = new_ori.y
-            self.recorded_ori[3][i] = new_ori.z
 
     def save(self, file='last'):
         np.savez(self._package_path + '/trajectories/' + str(file) + '.npz',
