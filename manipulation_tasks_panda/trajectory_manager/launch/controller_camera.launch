@@ -1,0 +1,22 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="robot_ip" default="172.16.0.2" />
+  <arg name="load_gripper" default="true" />
+  <include file="$(find franka_human_friendly_controllers)/launch/cartesian_variable_impedance_controller.launch" >
+    <arg name="robot_ip" value="$(arg robot_ip)" />
+    <arg name="load_gripper" value="$(arg load_gripper)" />
+  </include>
+
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+    <arg name="align_depth" value="true" />
+    <arg name="filters" value="pointcloud" />
+    <arg name="ordered_pc" value="true" />
+    <arg name="color_width" value="1280" />
+    <arg name="color_height" value="720" />
+    <arg name="color_fps" value="30" />
+    <arg name="enable_infra1" value="false" />
+  </include>
+
+  <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args="0.05073875796492183 -0.03418064441841842 0.033397 0.005087158 -0.00459640 0.70002409 0.7140855447 panda_hand camera_color_optical_frame 100"/>
+
+</launch>
