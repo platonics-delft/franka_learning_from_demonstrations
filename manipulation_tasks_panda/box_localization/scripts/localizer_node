@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 import os
 from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import Pose
 import rospy
 from sensor_msgs.msg import Image, PointCloud2 
 from robothon23vision.localization.localizer import Localizer
@@ -18,6 +19,7 @@ class SimpleLocalizerNode():
     def __init__(self) -> None:
         rospy.init_node("localizer_node")
         self._rate = rospy.Rate(10)
+        self._localizer = Localizer(debug=False)
         self.bridge = CvBridge()
         self.image_publisher = rospy.Publisher("/image_detection", Image, queue_size=10)
         self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
@@ -26,6 +28,15 @@ class SimpleLocalizerNode():
         self.pcl = None
         self._tf_publisher = tf.TransformBroadcaster()
         self._tf_listener = tf.TransformListener()
+        self._pose_publisher = rospy.Publisher("/box_transform", Pose, queue_size=10)
+        ground_truth = {
+                'red_button': np.array([ 0.42972328, -0.16320301,  0.06627839,  1.        ]),
+                'gray_area': np.array([ 0.42006164, -0.01094113,  0.0655315 ,  1.        ]),
+                'blue_area': np.array([ 0.38310724, -0.15873512,  0.07945754,  1.        ]),
+                'blue_button': np.array([ 0.37664535, -0.160712  ,  0.07844406,  1.        ])
+                }
+        self._localizer.set_ground_truth(ground_truth)
+
 
     def pcl_callback(self, data):
         converted = ros_numpy.numpify(data)
@@ -39,7 +50,7 @@ class SimpleLocalizerNode():
     def get_transformation_matrix(self) -> np.ndarray:
         while True:
             try:
-                rp_tr, rp_rt = self._tf_listener.lookupTransform('panda_link0', 'camera_link', rospy.Time.now())
+                rp_tr, rp_rt = self._tf_listener.lookupTransform('panda_link0', 'camera_color_optical_frame', rospy.Time.now() - rospy.Duration(1))
                 break
             except Exception as e:
                 rospy.logwarn(e)
@@ -50,30 +61,42 @@ class SimpleLocalizerNode():
     def publisher_localization(self):
         rospy.init_node("localizer_node")
         if self.curr_image is None or self.pcl is None:
-            print("no image")
+            rospy.logwarn("no image")
             return
-        localizer = Localizer(self.curr_image)
-        localizer.detect_points()
-        """
-        points = localizer._points
+
+        self._localizer.set_image(self.curr_image)
+        self._localizer.detect_points()
+        points = self._localizer._points
         coordinates_points = {}
         matrix = self.get_transformation_matrix()
         for name, pixels in points.items():
-            point_in_camera_frame = np.array(list(self.pcl[pixels[1], pixels[0]])[0:3] + [1])
-            coordinates_points[name] = np.dot(matrix, point_in_camera_frame)
-        print(coordinates_points)
-        tf_matrix = localizer.compute_full_tf_in_m()
+            try:
+                point_in_camera_frame = np.array(list(self.pcl[pixels[1], pixels[0]])[0:3] + [1])
+                coordinates_points[name] = np.dot(matrix, point_in_camera_frame)
+            except Exception as e:
+                rospy.logwarn(e)
+        self._localizer.set_coordinate_locations(coordinates_points)
+        tf_matrix = self._localizer.compute_coordinate_tf()
         position = tf_matrix[0:3, 3]
         quaternion = tf.transformations.quaternion_from_matrix(tf_matrix[0:4, 0:4])
         quaternion = quaternion/np.linalg.norm(quaternion)
+        # Publish pose
+        pose = Pose()
+        pose.position.x = position[0]
+        pose.position.y = position[1]
+        pose.position.z = position[2]
+        pose.orientation.w = quaternion[3]
+        pose.orientation.x = quaternion[0]
+        pose.orientation.y = quaternion[1]
+        pose.orientation.z = quaternion[2]
+        self._pose_publisher.publish(pose)
+        # Publish tf
         self._tf_publisher.sendTransform(position,
                                          quaternion,
                                          rospy.Time.now(),
                                          "box_tf",
                                          "panda_link0")
-
-        """
-        self.publish_annoted_image(self.curr_image, localizer._points)
+        self.publish_annoted_image(self.curr_image, self._localizer._points)
 
     def publish_annoted_image(self, image, points):
         font = cv2.FONT_HERSHEY_SIMPLEX
