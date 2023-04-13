@@ -30,31 +30,24 @@ class Learning_from_Demonstration():
         self.correction_window = 300
         self.curr_pos=None
         self.curr_ori=None
-        self.grip_width=None
-        self.pick = 0 ##### not being used
-        self.place = 0 ##### not being used
         self.recorded_traj = None 
         self.recorded_ori=None
         self.recorded_gripper= None
         self.end=False
         self.grip_value=1
         self.attractor_distance_threshold=0.05
-        pose_ref_2_new_topic = rospy.get_param('pose_ref_2_new_topic', '/pose_ref_2_new')
         
         self.trans_base_2_hand = np.array([0.308, -0.000, 0.588])
         self.rot_base_2_hand = list_2_quaternion([-0.002, 1.000, 0.006, -0.002])
 
         self.trans_hand_2_cam = np.array([0.05073875796492183, -0.03418064441841842, 0.033397])
         self.rot_hand_2_cam = list_2_quaternion([0.7140855447, 0.005087158, -0.00459640, 0.70002409])
-
         
-        self.pos_sub=rospy.Subscriber("/cartesian_pose", PoseStamped, self.ee_pos_callback) ##### are the subs being used?
-        #self.pose_ref_2_new_sub = rospy.Subscriber(pose_ref_2_new_topic, PoseStamped, self.pose_ref_2_new_callback)
+        self.pos_sub=rospy.Subscriber("/cartesian_pose", PoseStamped, self.ee_pos_callback)
         self.transform_icp_sub = rospy.Subscriber('/trans_rot', PoseStamped, self.transform_icp_callback)
 
         self.force_feedback_sub = rospy.Subscriber('/force_torque_ext', WrenchStamped, self.force_feedback_callback)
         self.goal_pub = rospy.Publisher('/equilibrium_pose', PoseStamped, queue_size=0)
-        # self.grip_pub = rospy.Publisher('/gripper_online', Float32, queue_size=0)
         self.configuration_pub = rospy.Publisher('/equilibrium_confguration', Float32MultiArray, queue_size=0)
         self.grasp_pub = rospy.Publisher("/franka_gripper/grasp/goal", GraspActionGoal,
                                            queue_size=0)
@@ -70,15 +63,12 @@ class Learning_from_Demonstration():
         self.joint_states_sub = rospy.Subscriber("/joint_states", JointState, self.joint_states_callback)
         self.listener = Listener(on_press=self._on_press)
         self.listener.start()
-        self.spiral = False
         self.spiraling = False
-        self.pose_ref_2_new = True
         
         self.pose_icp = None
 
         ros_pack = rospkg.RosPack()
         self._package_path = ros_pack.get_path('trajectory_manager')
-
 
         self.move_command=MoveActionGoal()
         self.grasp_command = GraspActionGoal()
@@ -116,25 +106,16 @@ class Learning_from_Demonstration():
         # Close/open gripper
         if key == KeyCode.from_char('c'):
             self.grip_value = 0
-            # grip_command = Float32()
-            # grip_command.data = self.grip_value
-            # self.grip_pub.publish(grip_command)
             # print('pressed c grip_value is ', grip_command.data)
             self.stop_gripper()
             self.move_gripper(self.grip_value)
         if key == KeyCode.from_char('o'):
             self.grip_value = 0.04
-            # grip_command = Float32()
-            # grip_command.data = self.grip_value
-            # self.grip_pub.publish(grip_command)
-            # print('pressed o grip_value is ', grip_command.data)
             self.stop_gripper()
             self.attractor_distance_threshold
             self.move_gripper(self.grip_value)
         if key == KeyCode.from_char('f'):
             self.feedback[3] = 1
-        if key == KeyCode.from_char('x'):
-            self.spiral = True
         key=0
 
 
@@ -161,18 +142,11 @@ class Learning_from_Demonstration():
             self.color_image_sub = rospy.Subscriber('camera/color/image_raw', Image, self.color_image_callback)
 
     def home(self):
-        goal = PoseStamped()
+        pos_array = np.array([0.6, 0, 0.4])
+        quat = np.quaternion(0, 1, 0, 0)
+        goal = array_quat_2_pose(pos_array, quat)
         goal.header.seq = 1
         goal.header.stamp = rospy.Time.now()
-        goal.header.frame_id = "map"
-        goal.pose.position.x = 0.6
-        goal.pose.position.y = 0
-        goal.pose.position.z = 0.4
-
-        goal.pose.orientation.w = 0
-        goal.pose.orientation.x = 1
-        goal.pose.orientation.y = 0
-        goal.pose.orientation.z = 0
 
         ns_msg = [0, 0, 0, -2.4, 0, 2.4, 0]
 
@@ -266,24 +240,11 @@ class Learning_from_Demonstration():
 
             self.r.sleep()
 
-        goal = PoseStamped()
-        goal.header.seq = 1
-        goal.header.stamp = rospy.Time.now()
-        goal.header.frame_id = "map"
-
-        goal.pose.position.x = self.curr_pos[0]
-        goal.pose.position.y = self.curr_pos[1]
-        goal.pose.position.z = self.curr_pos[2]
-        
-        goal.pose.orientation.w = self.curr_ori[0]
-        goal.pose.orientation.x = self.curr_ori[1]
-        goal.pose.orientation.y = self.curr_ori[2]
-        goal.pose.orientation.z = self.curr_ori[3]
+        quat_goal = list_2_quaternion(self.curr_ori)
+        goal = array_quat_2_pose(self.curr_pos, quat_goal)
         self.goal_pub.publish(goal)
         self.set_stiffness(100, 100, 100, 5, 5, 5, 0)
         rospy.loginfo("Ending trajectory recording")
-        self.recorded_traj = savgol_filter(self.recorded_traj, 51, 3)
-        self.recorded_ori = savgol_filter(self.recorded_ori, 51, 3)
 
     # control robot to desired goal position
     def go_to_pose(self, goal_pose, interp_dist=0.001/1.5, interp_dist_polar=0.001/1.5): ##### Are both interpolation distances needed?
@@ -326,90 +287,38 @@ class Learning_from_Demonstration():
         goal = PoseStamped()
         self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 40)
         for i in range(step_num):
-                   
-            goal.header.seq = 1
-            goal.header.stamp = rospy.Time.now()
-            goal.header.frame_id = "map"
-
-            goal.pose.position.x = x[i]
-            goal.pose.position.y = y[i]
-            goal.pose.position.z = z[i]
             quat=np.slerp_vectorized(q_start, q_goal, i/step_num)
-            
-            goal.pose.orientation.x = quat.x
-            goal.pose.orientation.y = quat.y
-            goal.pose.orientation.z = quat.z
-            goal.pose.orientation.w = quat.w
+            pos_array = np.array([x[i], y[i], z[i]])
+            goal = array_quat_2_pose(pos_array, quat)
             self.goal_pub.publish(goal)
             self.r.sleep()
         rospy.sleep(2.0)
         self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
 
-
     def execute(self, spiral_flag):
         self.spiralling_occured = False
 
         print("spiral flag", bool(int(spiral_flag)))
-        ##### Do we want to keep the sleep for closing the gripper?
-        grip_command_old = self.recorded_gripper[0][0]
         print('entered execute')
         start = PoseStamped()
 
-        start.pose.position.x = self.recorded_traj[0][0]
-        start.pose.position.y = self.recorded_traj[1][0]
-        start.pose.position.z = self.recorded_traj[2][0]
-
-        start.pose.orientation.w = self.recorded_ori[0][0]
-        start.pose.orientation.x = self.recorded_ori[1][0]
-        start.pose.orientation.y = self.recorded_ori[2][0]
-        start.pose.orientation.z = self.recorded_ori[3][0]
+        quat_start = list_2_quaternion(self.recorded_ori[:, 0])
+        start = array_quat_2_pose(self.recorded_traj[:, 0], quat_start)
         
         if self.pose_icp:
-            pose_base_2_hand = array_quat_2_pose(self.trans_base_2_hand, self.rot_base_2_hand)
-            pose_hand_2_cam = array_quat_2_pose(self.trans_hand_2_cam, self.rot_hand_2_cam)
-            transform_base_2_hand = pose_st_2_transformation(pose_base_2_hand)
-            transform_hand_2_cam = pose_st_2_transformation(pose_hand_2_cam)
-            self.transform_icp = pose_st_2_transformation(self.pose_icp)
-            transform_base_2_cam = transform_base_2_hand @ transform_hand_2_cam 
-            transform = transform_base_2_cam @ self.transform_icp @ np.linalg.inv(transform_base_2_cam)
+            transform = pose_st_2_transformation(self.pose_icp)
             start = transform_pose(start, transform)
         self.go_to_pose(start)
 
-        # desired_joints = np.array(self.curr_joint)
-        # desired_joints[0] = 0.008477713281629244        
-        # self.set_stiffness(self.K_pos, self.K_pos, self.K_pos, self.K_ori, self.K_ori, 0, 5)
-        # self.set_configuration(desired_joints)
-        # rospy.sleep(5.0)
-        # self.set_stiffness_key()
-        # self.set_stiffness(100, 100, 100, 5, 5, 5, 100)
-        # null_space_reset = False
         i=0
         while i <( self.recorded_traj.shape[1]):
-        # for i in range (self.recorded_traj.shape[1]):
-            
-            # if i > 100 and not null_space_reset:
-            #     self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
-            #     null_space_reset = True
 
-
-            goal = PoseStamped()
-
+            quat_goal = list_2_quaternion(self.recorded_ori[:, i])
+            goal = array_quat_2_pose(self.recorded_traj[:, i], quat_goal)
             goal.header.seq = 1
             goal.header.stamp = rospy.Time.now()
-            goal.header.frame_id = "map"		
-            goal.pose.position.x = self.recorded_traj[0][i]
-            goal.pose.position.y = self.recorded_traj[1][i]
-            goal.pose.position.z = self.recorded_traj[2][i]
-
-            goal.pose.orientation.w = self.recorded_ori[0][i]
-            goal.pose.orientation.x = self.recorded_ori[1][i]
-            goal.pose.orientation.y = self.recorded_ori[2][i]
-            goal.pose.orientation.z = self.recorded_ori[3][i]
-            
             ori_threshold = 0.3
             pos_threshold = 0.1
-            
-            
             
             if self.pose_icp:
             	goal = transform_pose(goal, transform)
@@ -441,16 +350,6 @@ class Learning_from_Demonstration():
                 if spiral_success:
                     self.recorded_traj[0, i:] += offset_correction[0]
                     self.recorded_traj[1, i:] += offset_correction[1]
-
-            # grip_command = Float32()
-
-            # grip_command.selfdata = self.recorded_gripper[0][i]
-            
-
-            # self.grip_pub.publish(grip_command)
-            
-            # if (np.abs(grip_command_old-grip_command.data))>0.5:
-            #     time.sleep(0.1)
 
             if (np.abs(self.recorded_gripper[0][max(0,i-1)]-self.recorded_gripper[0][i]))>0.02:
                 self.stop_gripper()
