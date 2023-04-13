@@ -34,7 +34,7 @@ class Learning_from_Demonstration():
         self.recorded_ori=None
         self.recorded_gripper= None
         self.end=False
-        self.grip_value=1
+        self.grip_value=0.04
         self.attractor_distance_threshold=0.05
         
         self.trans_base_2_hand = np.array([0.308, -0.000, 0.588])
@@ -76,10 +76,10 @@ class Learning_from_Demonstration():
         self.stop_command = StopActionGoal()
         self.gripper_width = 0
         self.move_command.goal.speed=1
-        self.grasp_command.goal.epsilon.inner = 0.1
-        self.grasp_command.goal.epsilon.outer = 0.1
+        self.grasp_command.goal.epsilon.inner = 0.3
+        self.grasp_command.goal.epsilon.outer = 0.3
         self.grasp_command.goal.speed = 0.1
-        self.grasp_command.goal.force = 5
+        self.grasp_command.goal.force = 50
         self.grasp_command.goal.width = 1
         rospy.sleep(1)
 
@@ -107,12 +107,21 @@ class Learning_from_Demonstration():
         if key == KeyCode.from_char('c'):
             self.grip_value = 0
             # print('pressed c grip_value is ', grip_command.data)
-            self.stop_gripper()
-            self.move_gripper(self.grip_value)
+            # self.stop_gripper()
+            # self.move_gripper(self.grip_value)
+            self.grasp_command.goal.epsilon.inner = 0.1
+            self.grasp_command.goal.epsilon.outer = 0.1
+            self.grasp_command.goal.force = 50
+            self.grasp_gripper(self.grip_value)
         if key == KeyCode.from_char('o'):
             self.grip_value = 0.04
-            self.stop_gripper()
-            self.attractor_distance_threshold
+            # self.stop_gripper()
+            # rospy.sleep(0.1)
+            # self.attractor_distance_threshold
+            # self.grasp_command.goal.epsilon.inner = 0.01
+            # self.grasp_command.goal.epsilon.outer = 0.01
+            # self.grasp_command.goal.force = 0
+            # self.grasp_gripper(self.grip_value)
             self.move_gripper(self.grip_value)
         if key == KeyCode.from_char('f'):
             self.feedback[3] = 1
@@ -132,14 +141,8 @@ class Learning_from_Demonstration():
         self.move_pub.publish(self.move_command)
 
     def grasp_gripper(self, width):
-        if width < 0.07 and self.grasp_command.goal.width != 0:
-            self.grasp_command.goal.width = 0
-            self.grasp_pub.publish(self.grasp_command)
-
-        elif width > 0.07 and self.grasp_command.goal.width != 1:
-            self.grasp_command.goal.width = 1
-            self.grasp_pub.publish(self.grasp_command)
-            self.color_image_sub = rospy.Subscriber('camera/color/image_raw', Image, self.color_image_callback)
+        self.grasp_command.goal.width = width
+        self.grasp_pub.publish(self.grasp_command)
 
     def home(self):
         pos_array = np.array([0.6, 0, 0.4])
@@ -351,10 +354,20 @@ class Learning_from_Demonstration():
                     self.recorded_traj[0, i:] += offset_correction[0]
                     self.recorded_traj[1, i:] += offset_correction[1]
 
-            if (np.abs(self.recorded_gripper[0][max(0,i-1)]-self.recorded_gripper[0][i]))>0.02:
-                self.stop_gripper()
+            if (self.recorded_gripper[0][i]-self.recorded_gripper[0][max(0,i-1)]) < -0.02:
+                print("closing gripper")
+                # self.stop_gripper()
+                # self.move_gripper(self.recorded_gripper[0][i])
+                self.grasp_gripper(self.recorded_gripper[0][i])
+                time.sleep(0.1)
+
+            if (self.recorded_gripper[0][i]-self.recorded_gripper[0][max(0,i-1)]) >0.02:
+                print("open gripper")
+                # self.stop_gripper()
+                # self.move_gripper(self.recorded_gripper[0][i])
                 self.move_gripper(self.recorded_gripper[0][i])
                 time.sleep(0.1)
+
 
             # recorded_traj_transformed = transform @ self.recorded_traj[:,i]
             # if (np.linalg.norm(np.array(self.curr_pos)-self.recorded_traj[:,i])) <= self.attractor_distance_threshold:
