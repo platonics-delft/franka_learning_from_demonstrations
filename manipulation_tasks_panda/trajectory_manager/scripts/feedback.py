@@ -6,8 +6,9 @@ import rospkg
 from geometry_msgs.msg import PoseStamped, Pose, WrenchStamped
 from pynput.keyboard import Listener, KeyCode
 from panda import Panda
-class Feedback(self):
+class Feedback():
     def __init__(self):
+        super(Feedback, self).__init__()
         self.feedback=np.zeros(4)
         self.feedback_gain=0.002
         self.faster_counter=0

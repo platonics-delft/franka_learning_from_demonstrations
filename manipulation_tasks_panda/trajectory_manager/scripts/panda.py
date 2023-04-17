@@ -16,6 +16,7 @@ from manipulation_helpers.pose_transform_functions import  array_quat_2_pose
 from franka_gripper.msg import GraspActionGoal, HomingActionGoal, StopActionGoal, MoveActionGoal
 class Panda():
     def __init__(self):
+        super(Panda, self).__init__()
         self.K_pos=1000
         self.K_ori=30
         self.K_ns=10 ##### not being used

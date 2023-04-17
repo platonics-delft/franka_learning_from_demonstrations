@@ -1,7 +1,10 @@
 from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
 import numpy as np
+import rospy
+from geometry_msgs.msg import PoseStamped
 class Transform():
     def __init__(self):
+        super(Transform, self).__init__()
         trans_base_2_hand = np.array([0.308, -0.000, 0.588])
         rot_base_2_hand = list_2_quaternion([-0.002, 1.000, 0.006, -0.002]) 
         self.pose_base_2_hand = array_quat_2_pose(trans_base_2_hand, rot_base_2_hand)

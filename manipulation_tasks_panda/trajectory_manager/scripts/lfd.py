@@ -11,10 +11,11 @@ from manipulation_helpers.pose_transform_functions import orientation_2_quaterni
 from panda import Panda
 from feedback import Feedback
 from insertion import Insertion
-from tranform import Transform 
+from transform import Transform 
+
 class LfD(Panda, Feedback, Insertion, Transform):
     def __init__(self):
-        super().__init__()
+        super(LfD, self).__init__()
         rospy.init_node("learning_node")
         self.r=rospy.Rate(100)
         self.pose = Pose()

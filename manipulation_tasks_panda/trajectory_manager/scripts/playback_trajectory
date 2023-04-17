@@ -3,6 +3,7 @@
 Playback of trajectories and storing them into a databaseself.
 """
 from lfd import LfD
+from lfd_image import LfD_image
 import sys
 import os
 import rospy
@@ -19,7 +20,7 @@ if __name__ == '__main__':
         print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
         sys.exit(1)
 
-    lfd = LfD()
+    lfd = LfD_image()
     lfd.load(arg1)
     
     try:
