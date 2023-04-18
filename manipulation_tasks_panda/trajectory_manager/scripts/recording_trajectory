@@ -2,22 +2,27 @@
 """
 Recording trajectories and storing them into a databaseself.
 """
-from Learning_from_Demonstration import Learning_from_Demonstration
+from lfd import LfD
+from lfd_image import LfD_image 
 import sys
 import os
 import rospy
 
 if __name__ == '__main__':
     try:
-        arg1 = sys.argv[1]
+        traj_name = sys.argv[1]
+        record_camera = sys.argv[2]
     except IndexError:
-        print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
+        print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>" + "<record camera: 0 or 1>")
         sys.exit(1)
 
     try:
-        lfd = Learning_from_Demonstration()
+        if int(record_camera):
+            lfd = LfD_image()
+        else:
+            lfd = LfD()
         lfd.traj_rec()
-        lfd.save(arg1)
+        lfd.save(traj_name)
     except rospy.ROSInterruptException:
         pass
 

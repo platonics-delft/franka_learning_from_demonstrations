@@ -12,15 +12,16 @@ if __name__ == '__main__':
     try:
         arg1 = sys.argv[1]
         spiral_flag = sys.argv[2]
-        if len(sys.argv) == 4:
-            save_prompt = int(sys.argv[3])
-        else:
-            save_prompt = 1
+        camera_feedback = sys.argv[3]
     except IndexError:
         print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
         sys.exit(1)
 
-    lfd = LfD_image()
+    if int(camera_feedback):
+        lfd = LfD_image()
+    else:
+        lfd = LfD()
+
     lfd.load(arg1)
     
     try:
@@ -29,8 +30,7 @@ if __name__ == '__main__':
         pass
     
     save = None
-    if not save_prompt:
-        save = 0
+
     while not (save in [0,1]):
         print("SAVE CURRENT RECORDING? 0 = NO, 1 = YES")
         try:

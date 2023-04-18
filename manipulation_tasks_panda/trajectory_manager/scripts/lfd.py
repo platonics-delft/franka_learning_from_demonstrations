@@ -15,8 +15,8 @@ from transform import Transform
 
 class LfD(Panda, Feedback, Insertion, Transform):
     def __init__(self):
-        super(LfD, self).__init__()
         rospy.init_node("learning_node")
+        super(LfD, self).__init__()
         self.r=rospy.Rate(100)
         self.pose = Pose()
         self.recorded_traj = None 

@@ -41,11 +41,11 @@ def image_process(image, ds_factor, row_crop_top, row_crop_bottom, col_crop_left
 
 class LfD_image(LfD):
     def __init__(self):
-        super().__init__()
         rospy.init_node("learning_node")
-        self.r=rospy.Rate(10)
+        super().__init__()
+        self.r=rospy.Rate(20)
 
-        self._tf_listener = tf.TransformListener()
+        # self._tf_listener = tf.TransformListener()
         self.spiraling = False
         
         self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
@@ -53,7 +53,7 @@ class LfD_image(LfD):
         self.cropped_img_pub = rospy.Publisher('/modified_img', Image, queue_size=0)
         self.annotated_img_pub = rospy.Publisher('/annotated_img', Image, queue_size=0)
         self.current_template_pub = rospy.Publisher('/current_template', Image, queue_size=0)
-
+        self.corrected_goal_pub = rospy.Publisher('/corrected_goal', PoseStamped, queue_size=0)
         self.bridge = CvBridge()
 
         self.curr_image = None
@@ -68,8 +68,8 @@ class LfD_image(LfD):
         self.row_crop_pct_bot = 0.9
         self.col_crop_pct_left = 0.5
         self.col_crop_pct_right = 0.9
-        self.row_bias = (self.row_crop_pct_top + self.row_crop_pct_bot)/2 - 0.5
-        self.col_bias = (self.col_crop_pct_left + self.col_crop_pct_right)/2 - 0.5
+        self.row_bias_pct = (self.row_crop_pct_top + self.row_crop_pct_bot)/2 - 0.5
+        self.col_bias_pct = (self.col_crop_pct_left + self.col_crop_pct_right)/2 - 0.5
 
         ros_pack = rospkg.RosPack()
         self._package_path = ros_pack.get_path('trajectory_manager')
@@ -157,6 +157,7 @@ class LfD_image(LfD):
             start = self.transform(start)
             
         self.go_to_pose(start)
+        self.set_stiffness(1000, 1000, 1000, 30, 30, 30, 0)
 
         i=0
         while i <( self.recorded_traj.shape[1]):
@@ -164,6 +165,7 @@ class LfD_image(LfD):
             goal = array_quat_2_pose(self.recorded_traj[:, i], quat_goal)
             goal.header.seq = 1
             goal.header.stamp = rospy.Time.now()
+            goal.header.frame_id = 'panda_link0'
             ori_threshold = 0.3
             pos_threshold = 0.1
             
@@ -229,9 +231,9 @@ class LfD_image(LfD):
             elif method=='cv2':
                 res = cv2.matchTemplate(resized_img_gray, self.recorded_img[i], cv2.TM_SQDIFF_NORMED)
                 min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-                x, y = min_loc
-                x_rect = int(x)
-                y_rect = int(y)
+                top_left_xy = min_loc
+                x_rect = int(top_left_xy[0])
+                y_rect = int(top_left_xy[1])
 
                 w_rect = int(self.recorded_img_tensor[i].shape[1])
                 h_rect = int(self.recorded_img_tensor[i].shape[0])
@@ -240,22 +242,43 @@ class LfD_image(LfD):
                 font_scale = 0.8
                 font_color = (0, 0, 255)
                 thickness = 2            
-                cv2.putText(resized_img_gray, str(min_val), (x_rect, int(y_rect+h_rect/2)), font, font_scale, font_color, thickness)             
-                x_distance = x - resized_img_gray.shape[1] / 2 + self.recorded_img[i].shape[1] / 2
-                y_distance = y - resized_img_gray.shape[0] / 2 + self.recorded_img[i].shape[0] / 2
-            print(x_distance, y_distance)
+                cv2.putText(resized_img_gray, str(min_val), (x_rect, int(y_rect+h_rect/2)), font, font_scale, font_color, thickness)
+                cv2.putText(resized_img_gray, str(max_val), (x_rect, int(y_rect+h_rect/2+20)), font, font_scale, font_color, thickness)             
+             
+                original_center_x = (top_left_xy[0] + self.recorded_img[i].shape[1] / 2) - self.col_bias_pct * resized_img_gray.shape[1]
+                original_center_y = (top_left_xy[1] + self.recorded_img[i].shape[0] / 2) - self.row_bias_pct * resized_img_gray.shape[0]
+
+                x_distance = resized_img_gray.shape[1] / 2 - original_center_x
+                y_distance = resized_img_gray.shape[0] / 2 - original_center_y
+                print("x_distance:",x_distance)
+                print("y_distance:",y_distance)
+                # print(x_distance, y_distance)
+
             resized_img_gray_msg = self.bridge.cv2_to_imgmsg(resized_img_gray)
 
             self.annotated_img_pub.publish(resized_img_gray_msg)
-            while True:
-                try:
-                    rp_tr, rp_rt = self._tf_listener.lookupTransform('camera_color_optical_frame', 'panda_link0', rospy.Time.now() - rospy.Duration(1))
-                    break
-                except Exception as e:
-                    rospy.logwarn(e)
-            cam_2_base_rot_matrix = tf.transformations.quaternion_matrix(rp_rt)
 
+            transform_base_2_cam = self.get_transform('panda_link0', 'camera_color_optical_frame')
+            transform_correction = np.identity(4)
+            correction_increment = 0.0001
+            if abs(x_distance) > 5:
+                print("x distance greater")
+                transform_correction[0, 3] = np.sign(x_distance) * correction_increment
+            if abs(y_distance) > 5:
+                print("y distance greater")
+                transform_correction[1, 3] = np.sign(y_distance) * correction_increment
+            transform = transform_base_2_cam @ transform_correction @ np.linalg.inv(transform_base_2_cam)
+
+            corrected_pos = position_2_array(goal.pose.position) + transform[:3,3]
+            corrected_goal = array_quat_2_pose(corrected_pos, orientation_2_quaternion(goal.pose.orientation))
+            # diff_pos = corrected_pos - self.recorded_traj[:, i]
+            corrected_goal.header.frame_id = 'panda_link0'
+            self.corrected_goal_pub.publish(corrected_goal)
             self.goal_pub.publish(goal)
+            if min_val < 0.05:
+                if int(transform_correction[0,3]) or (transform_correction[1,3]):
+                    print("applying correction")
+                self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
 
             if self.force.z > 9 and bool(int(spiral_flag)):
                 spiral_success, offset_correction = self.spiral_search(goal)

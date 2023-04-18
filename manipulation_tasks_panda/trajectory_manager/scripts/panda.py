@@ -11,12 +11,12 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import PoseStamped, Pose, WrenchStamped
 from std_msgs.msg import Float32MultiArray, Float32
 import dynamic_reconfigure.client
-from pynput.keyboard import Listener, KeyCode
 from manipulation_helpers.pose_transform_functions import  array_quat_2_pose
 from franka_gripper.msg import GraspActionGoal, HomingActionGoal, StopActionGoal, MoveActionGoal
 class Panda():
     def __init__(self):
         super(Panda, self).__init__()
+
         self.K_pos=1000
         self.K_ori=30
         self.K_ns=10 ##### not being used
@@ -53,6 +53,7 @@ class Panda():
         self.grasp_command.goal.speed = 0.1
         self.grasp_command.goal.force = 50
         self.grasp_command.goal.width = 1
+
         rospy.sleep(1)
 
     def ee_pos_callback(self, curr_conf):
@@ -116,8 +117,9 @@ class Panda():
         self.configuration_pub.publish(joint_des)   
 
     # control robot to desired goal position
-    def go_to_pose(self, goal_pose, interp_dist=0.05, interp_dist_polar=0.05): ##### Are both interpolation distances needed?
+    def go_to_pose(self, goal_pose, interp_dist=0.005, interp_dist_polar=0.005): ##### Are both interpolation distances needed?
         # the goal pose should be of type PoseStamped. E.g. goal_pose=PoseStampled()
+        r = rospy.Rate(100)
         start = self.curr_pos
         start_ori = self.curr_ori
         goal_array = np.array([goal_pose.pose.position.x, goal_pose.pose.position.y, goal_pose.pose.position.z])
@@ -150,16 +152,13 @@ class Panda():
         y = np.linspace(start[1], goal_pose.pose.position.y, step_num)
         z = np.linspace(start[2], goal_pose.pose.position.z, step_num)
 
-        # change this accordingly for now
-        self.set_stiffness_key()
-
         goal = PoseStamped()
-        self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 40)
+        self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
         for i in range(step_num):
             quat=np.slerp_vectorized(q_start, q_goal, i/step_num)
             pos_array = np.array([x[i], y[i], z[i]])
             goal = array_quat_2_pose(pos_array, quat)
             self.goal_pub.publish(goal)
-            self.r.sleep()
-        rospy.sleep(2.0)
+            r.sleep()
+        # rospy.sleep(2.0)
         self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
