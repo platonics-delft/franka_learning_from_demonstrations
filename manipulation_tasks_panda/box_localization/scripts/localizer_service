@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+import sys
+import os
+from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import Pose, PoseStamped
+from std_msgs.msg import Bool
+import rospy
+from sensor_msgs.msg import Image, PointCloud2 
+from robothon23vision.localization.localizer import Localizer
+from robothon23vision.localization.localizer_sift import Localizer as LocalizerSift
+from robothon23vision.detectors import *
+import numpy as np
+import ros_numpy
+import dynamic_reconfigure.client
+
+from box_localization.srv import ComputeLocalization, ComputeLocalizationResponse
+
+import tf
+
+from cv_bridge import CvBridge, CvBridgeError
+import cv2
+from cv2 import imshow, waitKey, imwrite, COLOR_BGR2RGB, cvtColor
+
+from queue import Queue
+
+def median_of_queue(q):
+    n = q.qsize()
+    median = np.median(np.array(list(q.queue)), axis=0)
+    return median
+
+
+
+
+class LocalizationService():
+    def __init__(self) -> None:
+        rospy.init_node("localization_server")
+        self._rate = rospy.Rate(5)
+        #self._localizer = Localizer(debug=False)
+        self._localizer = LocalizerSift('template.png')
+        self.bridge = CvBridge()
+        self.image_publisher = rospy.Publisher("/image_detection", Image, queue_size=10)
+        self._publisher_counter = 0
+        self._service = rospy.Service('compute_localization', ComputeLocalization, self.handle_request)
+
+
+    def compute_localization_in_pixels(self, img: Image):
+        cv_image = self.bridge.imgmsg_to_cv2(img, "bgr8")
+        self._localizer.set_image(cv_image)
+        try:
+            self._localizer.detect_points()
+        except Exception as e:
+            print(e)
+            print('Returning identity')
+            return np.identity(4)
+        tf_matrix = self._localizer.compute_full_tf_in_m()
+        return tf_matrix
+    
+    def publish_annoted_image(self):
+        """
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.8
+        font_color = (0, 0, 255)
+        thickness = 1
+        for key, center in points.items():
+
+            cv2.circle(image, center, 10, (0, 0, 255), 2)
+            cv2.circle(image, center, 2, (0, 0, 255), 3)
+            cv2.putText(image, key, (center[0]+15, center[1]), font, font_scale, font_color, thickness)
+
+        #print(type(self._localizer._detectors[1]))
+        #ros_image = self.bridge.cv2_to_imgmsg(self._localizer._detectors[1].filtered_img(), "bgr8")
+        """
+        ros_image = self.bridge.cv2_to_imgmsg(self._localizer.annoted_image(), "bgr8")
+        self.image_publisher.publish(ros_image)
+
+
+    def handle_request(self, req):
+        tf_matrix = self.compute_localization_in_pixels(req.img)
+        # tf_matrix[0:3, 0:3] = np.identity(3)
+
+
+        position = tf_matrix[0:3, 3]
+        quaternion = tf.transformations.quaternion_from_matrix(tf_matrix[0:4, 0:4])
+        quaternion = quaternion/np.linalg.norm(quaternion)
+        # Publish pose
+        pose = PoseStamped()
+        pose.pose.position.x = position[0]
+        pose.pose.position.y = position[1]
+        pose.pose.position.z = position[2]
+        pose.pose.orientation.w = quaternion[3]
+        pose.pose.orientation.x = quaternion[0]
+        pose.pose.orientation.y = quaternion[1]
+        pose.pose.orientation.z = quaternion[2]
+        self.publish_annoted_image()
+
+    
+        return ComputeLocalizationResponse(pose)
+
+
+    def run(self):
+        while not rospy.is_shutdown():
+            self._rate.sleep()
+    
+
+if __name__ == '__main__':
+    simple_localizer_node = LocalizationService()
+    try:
+        simple_localizer_node.run()
+    except rospy.ROSInterruptException:
+        pass

@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+import sys
+import time
+sys.path.append('/home/platonics/Documents/robothon/src/franka_ros/robotthon_23_platonics/manipulation_tasks_panda/trajectory_manager/scripts')
+from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
+import rospy
+from sensor_msgs.msg import Image, PointCloud2 
+from robothon23vision.localization.localizer import Localizer
+from robothon23vision.detectors import *
+from panda import Panda
+from transform import Transform
+from box_localization.srv import ComputeLocalization
+from manipulation_helpers.pose_transform_functions import list_2_quaternion, array_quat_2_pose
+import numpy as np
+import ros_numpy
+import dynamic_reconfigure.client
+
+import tf
+
+from cv_bridge import CvBridge, CvBridgeError
+import cv2
+from cv2 import imshow, waitKey, imwrite, COLOR_BGR2RGB, cvtColor
+
+from queue import Queue
+
+class ActiveLocalizerNode():
+    def __init__(self) -> None:
+        self._imgs = Queue(maxsize=1)
+        self._img = None
+        rospy.init_node("active_localizer_node")
+        self._rate = rospy.Rate(1)
+        self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
+        self._panda = Panda()
+        self._transformer = Transform()
+        rospy.wait_for_service('compute_localization')
+        self.compute_box_tf = rospy.ServiceProxy('compute_localization', ComputeLocalization)
+        self._go_to = True
+
+
+    def image_callback(self, img):
+        self._img = img
+        """
+        self._imgs.put(img)
+        if self._imgs.full():
+            self._imgs.get()
+        """
+
+
+
+    def run(self):
+        self._rate.sleep()
+        while not rospy.is_shutdown():
+            if self._img is None:
+                rospy.logwarn("No Image")
+                self._rate.sleep()
+            position = self._panda.curr_pos
+            ori = list_2_quaternion(self._panda.curr_ori)
+            home_pose = array_quat_2_pose(position, ori)
+            try:
+                resp = self.compute_box_tf(self._img)
+                box_tf = resp.pose
+                print('box_tf : ', box_tf)
+
+            except Exception as e:
+                rospy.logwarn(e)
+                continue
+            self._transformed_pose = self._transformer.transform(box_tf, home_pose)
+            self._panda.go_to_pose(self._transformed_pose, interp_dist=0.001, interp_dist_polar=0.001)
+            rospy.loginfo("Finished go to.")
+    
+
+if __name__ == '__main__':
+    active_localizer_node = ActiveLocalizerNode()
+    try:
+        active_localizer_node.run()
+    except rospy.ROSInterruptException:
+        pass
