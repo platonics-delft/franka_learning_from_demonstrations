@@ -17,13 +17,12 @@ class LfD(Panda, Feedback, Insertion, Transform):
     def __init__(self):
         rospy.init_node("learning_node")
         super(LfD, self).__init__()
-        self.r=rospy.Rate(100)
+        self.r=rospy.Rate(20)
         self.pose = Pose()
         self.recorded_traj = None 
         self.recorded_ori=None
         self.recorded_gripper= None
         self.end=False
-        self.grip_value=0.04
         self.attractor_distance_threshold=0.05
 
         self.listener = Listener(on_press=self._on_press)
@@ -56,6 +55,10 @@ class LfD(Panda, Feedback, Insertion, Transform):
         
         self.recorded_traj = self.curr_pos
         self.recorded_ori = self.curr_ori
+        if self.gripper_width < 0.03:
+            self.grip_value = 0
+        else:
+            self.grip_value = 0.04
         self.recorded_gripper= self.grip_value
         
         print("Recording started. Press e to stop.")
@@ -98,7 +101,7 @@ class LfD(Panda, Feedback, Insertion, Transform):
             pos_threshold = 0.1
             
             if self.pose_icp:
-                goal = self.transform(gaol)
+                goal = self.transform(goal)
             
             self.correct()
 

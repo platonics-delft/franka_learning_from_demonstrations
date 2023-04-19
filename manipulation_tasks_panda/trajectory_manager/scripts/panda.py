@@ -97,7 +97,8 @@ class Panda():
 
     def joint_states_callback(self, data):
         self.curr_joint = data.position[:7]
-
+        self.gripper_width = data.position[7] + data.position[8]
+        
     def set_stiffness(self, k_t1, k_t2, k_t3,k_r1,k_r2,k_r3, k_ns):
         
         self.set_K.update_configuration({"translational_stiffness_X": k_t1})
@@ -160,5 +161,5 @@ class Panda():
             goal = array_quat_2_pose(pos_array, quat)
             self.goal_pub.publish(goal)
             r.sleep()
-        # rospy.sleep(2.0)
+        rospy.sleep(0.2)
         self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)

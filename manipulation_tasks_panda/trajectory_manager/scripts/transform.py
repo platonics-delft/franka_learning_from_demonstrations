@@ -29,7 +29,9 @@ class Transform():
     def get_transform(self, source_frame, target_frame):
         while True:
             try:
-                rp_tr, rp_rt = self._tf_listener.lookupTransform(source_frame, target_frame, rospy.Time.now() - rospy.Duration(1))
+                now = rospy.Time.now()
+                self._tf_listener.waitForTransform(source_frame, target_frame, now, rospy.Duration(4.0))
+                rp_tr, rp_rt = self._tf_listener.lookupTransform(source_frame, target_frame, now)
                 break
             except Exception as e:
                 rospy.logwarn(e)
@@ -58,5 +60,14 @@ class Transform():
         pose_old=copy.deepcopy(pose)
         print("transforming", transform)
         pose = transform_pose(pose, transform)
-        pose.pose.position.z=pose_old.pose.position.z
+        pose_quat = orientation_2_quaternion(pose.pose.orientation)
+        pose.pose.orientation.z = 0
+        pose.pose.orientation.w = 0
+        new_magnitude = np.sqrt(pose_quat.x * pose_quat.x + pose_quat.y * pose_quat.y)
+        pose_quat.x = pose_quat.x / new_magnitude
+        pose_quat.y = pose_quat.y / new_magnitude
+        pose.pose.orientation.x = pose_quat.x
+        pose.pose.orientation.y = pose_quat.y
+
+        pose.pose.position.z=0.4841658147707774
         return pose
