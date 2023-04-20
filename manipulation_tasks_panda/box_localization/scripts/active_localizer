@@ -5,18 +5,20 @@ sys.path.append('/home/platonics/Documents/robothon/src/franka_ros/robotthon_23_
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
 import rospy
+from std_srvs.srv import Trigger, TriggerResponse
 from sensor_msgs.msg import Image, PointCloud2 
 from robothon23vision.localization.localizer import Localizer
 from robothon23vision.detectors import *
 from panda import Panda
 from transform import Transform
 from box_localization.srv import ComputeLocalization
-from manipulation_helpers.pose_transform_functions import list_2_quaternion, array_quat_2_pose
+from manipulation_helpers.pose_transform_functions import list_2_quaternion, array_quat_2_pose, pose_st_2_transformation
 import numpy as np
 import ros_numpy
 import dynamic_reconfigure.client
 
 import tf
+from tf.transformations import euler_from_quaternion
 
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -36,6 +38,9 @@ class ActiveLocalizerNode():
         rospy.wait_for_service('compute_localization')
         self.compute_box_tf = rospy.ServiceProxy('compute_localization', ComputeLocalization)
         self._go_to = True
+        self._window = Queue(maxsize=10)
+        self._service = rospy.Service('active_localizer', Trigger, self.handle_request)
+
 
 
     def image_callback(self, img):
@@ -46,9 +51,8 @@ class ActiveLocalizerNode():
             self._imgs.get()
         """
 
-
-
-    def run(self):
+    def handle_request(self, req):
+        final_resp = TriggerResponse()
         self._rate.sleep()
         while not rospy.is_shutdown():
             if self._img is None:
@@ -60,7 +64,18 @@ class ActiveLocalizerNode():
             try:
                 resp = self.compute_box_tf(self._img)
                 box_tf = resp.pose
-                print('box_tf : ', box_tf)
+                ori = [
+                    resp.pose.pose.orientation.x,
+                    resp.pose.pose.orientation.y,
+                    resp.pose.pose.orientation.z,
+                    resp.pose.pose.orientation.w
+                ]
+                xy_yaw = [
+                    resp.pose.pose.position.x, 
+                    resp.pose.pose.position.y,
+                    euler_from_quaternion(ori)[2]
+                ]
+                # self._window.put(xy_yaw)
 
             except Exception as e:
                 rospy.logwarn(e)
@@ -68,11 +83,33 @@ class ActiveLocalizerNode():
             self._transformed_pose = self._transformer.transform(box_tf, home_pose)
             self._panda.go_to_pose(self._transformed_pose, interp_dist=0.001, interp_dist_polar=0.001)
             rospy.loginfo("Finished go to.")
-    
+            pos_error = np.linalg.norm(xy_yaw[:2])
+            yaw_error = abs(xy_yaw[2])
+            print(f"position error {pos_error}, yaw error {yaw_error}")
+
+            if pos_error < 0.003 and yaw_error < 0.5*(3.14/180):
+                final_resp.message = f"Finished localization, final error: {pos_error + yaw_error}"
+                final_resp.success = True
+                print(final_resp.message)
+                return final_resp
+
+            # if self._window.full():
+            #     self._window.get()
+            #     median_xy_yaw = np.median(np.array(list(self._window.queue)), axis=0)
+            #     pos_error = np.linalg.norm(median_xy_yaw[:2])
+            #     yaw_error = median_xy_yaw[2]
+            #     print(f"position error {pos_error}, yaw error {yaw_error}")
+            #     if (pos_error + yaw_error) < 0.03:
+            #         final_resp.message = f"Finished localization, final error: {pos_error + yaw_error}"
+            #         final_resp.success = True
+            #         print(final_resp.message)
+                    # return final_resp
+
 
 if __name__ == '__main__':
     active_localizer_node = ActiveLocalizerNode()
-    try:
-        active_localizer_node.run()
-    except rospy.ROSInterruptException:
-        pass
+    rospy.spin()
+    # try:
+    #     # active_localizer_node.run()
+    # except rospy.ROSInterruptException:
+    #     pass
