@@ -30,13 +30,14 @@ class CameraFeedback():
 
         self.ds_factor = 4
 
-        self.x_dist_threshold = 5
-        self.y_dist_threshold = 5
+        self.x_dist_threshold = 4
+        self.y_dist_threshold = 4
 
 
     def template_matching(self):
         self.image_process(self.ds_factor,  0, 1, 0, 1)
-        idx=np.argmin(np.linalg.norm(self.recorded_traj-(self.curr_pos).reshape(3,1),axis=0))
+        # idx=np.argmin(np.linalg.norm(self.recorded_traj-(self.curr_pos).reshape(3,1),axis=0))
+        idx = self.time_index
         recorded_image_msg = self.bridge.cv2_to_imgmsg(self.recorded_img[idx])
 
         self.current_template_pub.publish(recorded_image_msg)  
@@ -94,6 +95,8 @@ class CameraFeedback():
 
         self.image_process(self.ds_factor,  0, 1, 0, 1)
         idx=np.argmin(np.linalg.norm(self.recorded_traj-(self.curr_pos).reshape(3,1),axis=0))
+        # idx = self.time_index
+
         # recorded_image_msg = self.bridge.cv2_to_imgmsg(self.recorded_img[idx])
 
         # self.current_template_pub.publish(recorded_image_msg)  
@@ -119,11 +122,18 @@ class CameraFeedback():
         # store all the good matches as per Lowe's ratio test.
         good = []
         for m, n in matches:
-            if m.distance < 0.7 * n.distance:
+            if m.distance < 0.4 * n.distance:
                 good.append(m)
             # translate keypoints back to full source template
+        cx_cy_array = np.array([639.329345703125, 376.771240234375])
+        # cx_cy_array = np.array([0, 0])
+        # print("before", kp1[0].pt)
+
         for k in kp1:
-            k.pt = (k.pt[0] + self.col_crop_pct_left * self.resized_img_gray.shape[1], k.pt[1] + self.row_crop_pct_top * self.resized_img_gray.shape[0])
+            k.pt = (k.pt[0] + self.col_crop_pct_left * self.resized_img_gray.shape[1] - cx_cy_array[0], k.pt[1] + self.row_crop_pct_top * self.resized_img_gray.shape[0] - cx_cy_array[1])
+        for k in kp2:
+            k.pt = (k.pt[0] - cx_cy_array[0], k.pt[1] - cx_cy_array[1])
+        # print("after", kp1[0].pt)
 
         transform_correction = np.eye(4)
         transform_pixels = np.eye(2)
@@ -133,7 +143,7 @@ class CameraFeedback():
             self._dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
             transform_pixels, inliers = cv2.estimateAffinePartial2D(self._src_pts, self._dst_pts)
-
+            print("transform", transform_pixels)
             scaling_factor = 1 - np.sqrt(np.linalg.det(transform_pixels[0:2, 0:2]))
 
 
@@ -145,10 +155,26 @@ class CameraFeedback():
             correction_increment = 0.001
             if abs(x_distance) > self.x_dist_threshold:
                 transform_correction[0, 3] = np.sign(x_distance) * correction_increment
+                print("correcting x")
             if abs(y_distance) > self.y_dist_threshold:
                 transform_correction[1, 3] = np.sign(y_distance) * correction_increment
+                print("correcting y")
+
             if abs(scaling_factor) > 0.05:
                 transform_correction[2,3] = np.sign(scaling_factor) * correction_increment
+                print("correcting z")
+
+            # gain = correction_increment / self.x_dist_threshold * 0.1
+            # if abs(x_distance) > self.x_dist_threshold:
+            #     transform_correction[0, 3] = x_distance * gain
+            #     print("correcting x")
+            # if abs(y_distance) > self.y_dist_threshold:
+            #     transform_correction[1, 3] = y_distance * gain
+            #     print("correcting y")
+
+            # if abs(scaling_factor) > 0.05:
+            #     transform_correction[2,3] = np.sign(scaling_factor) * correction_increment
+            #     print("correcting z")
 
         if len(good) > 4:
             try:
