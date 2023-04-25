@@ -45,6 +45,16 @@ def transform_pose(pose: PoseStamped, transformation_matrix):
     transformed_pose = transformation_2_pose(transformed_pose_matrix)
     return transformed_pose
 
+def transform_pos_ori(pos: np.array, ori, transform):
+    ori_quat = list_2_quaternion(ori)
+    ori_rot_matrix = quaternion.as_rotation_matrix(ori_quat)
+    transformed_ori_rot_matrix = transform[:3,:3] @ ori_rot_matrix
+    pos = np.hstack((pos, 1))
+    transformed_pos = transform @ pos
+    transformed_ori_quat = quaternion.from_rotation_matrix(transformed_ori_rot_matrix)
+    transformed_ori_array = np.array([transformed_ori_quat.w, transformed_ori_quat.x, transformed_ori_quat.y, transformed_ori_quat.z])
+    return transformed_pos[:3], transformed_ori_array
+
 def list_2_quaternion(quaternion_list: list):
     return np.quaternion(quaternion_list[0], quaternion_list[1], quaternion_list[2], quaternion_list[3])
 
