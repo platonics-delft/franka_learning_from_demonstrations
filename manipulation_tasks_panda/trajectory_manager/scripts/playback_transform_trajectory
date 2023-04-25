@@ -12,8 +12,8 @@ import rospy
 
 if __name__ == '__main__':
     try:
-        # trajectory_name = sys.argv[1]
-        localization_flag = sys.argv[1]
+        trajectory_name = sys.argv[1]
+        localization_flag = sys.argv[2]
     except IndexError:
         print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
         sys.exit(1)
@@ -29,25 +29,9 @@ if __name__ == '__main__':
         lfd.compute_final_transform() 
     
     try:
-        lfd.load("blue_button")
-        lfd.execute()
-        
-        lfd.load("slider")
-        lfd.execute()
-
-        lfd.load("cable_door_3")
-        lfd.execute()
-
-        lfd.load("probe")
-        lfd.execute()
-
-        lfd.load("wrap_19")
-        lfd.execute()
-
-        lfd.load("red_button")
+   
+        lfd.load(trajectory_name)
         lfd.execute()
     except rospy.ROSInterruptException:
         pass
-
-
 

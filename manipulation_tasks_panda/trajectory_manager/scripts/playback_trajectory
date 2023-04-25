@@ -6,26 +6,22 @@ from lfd import LfD
 from lfd_image import LfD_image
 import sys
 import os
+from std_srvs.srv import Trigger
 import rospy
 
 if __name__ == '__main__':
     try:
-        arg1 = sys.argv[1]
-        spiral_flag = sys.argv[2]
-        camera_feedback = sys.argv[3]
+        trajectory_name = sys.argv[1]
     except IndexError:
         print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
         sys.exit(1)
 
-    if int(camera_feedback):
-        lfd = LfD_image()
-    else:
-        lfd = LfD()
+    lfd = LfD_image()
 
-    lfd.load(arg1)
-    
+    lfd.load(trajectory_name)
     try:
-        lfd.execute(spiral_flag)
+        # lfd.compute_final_box_transform()
+        lfd.execute()
     except rospy.ROSInterruptException:
         pass
     
@@ -38,4 +34,4 @@ if __name__ == '__main__':
         except:
             print("INVALID INPUT")
     if save:
-        lfd.save(arg1)
+        lfd.save(trajectory_name)
