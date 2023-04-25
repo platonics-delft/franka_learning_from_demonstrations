@@ -28,7 +28,7 @@ class Panda():
 
         self.force_feedback_sub = rospy.Subscriber('/force_torque_ext', WrenchStamped, self.force_feedback_callback)
         self.goal_pub = rospy.Publisher('/equilibrium_pose', PoseStamped, queue_size=0)
-        self.configuration_pub = rospy.Publisher('/equilibrium_confguration', Float32MultiArray, queue_size=0)
+        self.configuration_pub = rospy.Publisher('/equilibrium_configuration', Float32MultiArray, queue_size=0)
         self.grasp_pub = rospy.Publisher("/franka_gripper/grasp/goal", GraspActionGoal,
                                            queue_size=0)
         self.move_pub = rospy.Publisher("/franka_gripper/move/goal", MoveActionGoal,
@@ -118,7 +118,7 @@ class Panda():
         self.configuration_pub.publish(joint_des)   
 
     # control robot to desired goal position
-    def go_to_pose(self, goal_pose, interp_dist=0.005, interp_dist_polar=0.005): ##### Are both interpolation distances needed?
+    def go_to_pose(self, goal_pose, interp_dist=0.001, interp_dist_polar=0.001): ##### Are both interpolation distances needed?
         # the goal pose should be of type PoseStamped. E.g. goal_pose=PoseStampled()
         r = rospy.Rate(100)
         start = self.curr_pos
@@ -154,7 +154,7 @@ class Panda():
         z = np.linspace(start[2], goal_pose.pose.position.z, step_num)
 
         goal = PoseStamped()
-        self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
+        # self.set_stiffness(4000, 4000, 4000, 50, 50, 50, 0)
         for i in range(step_num):
             quat=np.slerp_vectorized(q_start, q_goal, i/step_num)
             pos_array = np.array([x[i], y[i], z[i]])
@@ -162,4 +162,4 @@ class Panda():
             self.goal_pub.publish(goal)
             r.sleep()
         rospy.sleep(0.2)
-        self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
+        # self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)
