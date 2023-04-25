@@ -14,6 +14,11 @@ class Feedback():
         self.faster_counter=0
         self.length_scale = 0.005
         self.correction_window = 300
+        self.img_feedback_flag = 0
+        self.spiral_flag = 0
+        self.img_feedback_correction = 0
+        self.gripper_feedback_correction = 0
+
     def _on_press(self, key):
         rospy.loginfo(f"Event happened, user pressed {key}")
         # This function runs on the background and checks if a keyboard key was pressed
@@ -41,11 +46,28 @@ class Feedback():
             self.grasp_command.goal.epsilon.outer = 0.1
             self.grasp_command.goal.force = 50
             self.grasp_gripper(self.grip_value)
+            self.gripper_feedback_correction = 1
+
         if key == KeyCode.from_char('o'):
-            self.grip_value = 0.04
+            self.grip_value = 0.025
             self.move_gripper(self.grip_value)
+            self.gripper_feedback_correction = 1
         if key == KeyCode.from_char('f'):
             self.feedback[3] = 1
+        if key == KeyCode.from_char('k'):
+            print("camera feedback enabled")
+            self.img_feedback_flag = 1
+            self.img_feedback_correction = 1
+        if key == KeyCode.from_char('l'):
+            print("camera feedback disabled")
+            self.img_feedback_flag = 0
+            self.img_feedback_correction = 1
+        if key == KeyCode.from_char('z'):
+            print("spiral enabled")
+            self.spiral_flag = 1
+        if key == KeyCode.from_char('x'):
+            print("spiral disabled")
+            self.spiral_flag = 0
         key=0
 
     def square_exp(self, ind_curr, ind_j):
@@ -56,21 +78,33 @@ class Feedback():
     def correct(self):
         if np.sum(self.feedback[:3])!=0:
             for j in range(self.recorded_traj.shape[1]):
-                x = self.feedback[0]*self.square_exp(i, j)
-                y = self.feedback[1]*self.square_exp(i, j)
-                z = self.feedback[2]*self.square_exp(i, j)
+                x = self.feedback[0]*self.square_exp(self.time_index, j)
+                y = self.feedback[1]*self.square_exp(self.time_index, j)
+                z = self.feedback[2]*self.square_exp(self.time_index, j)
 
                 self.recorded_traj[0][j] += x
                 self.recorded_traj[1][j] += y
                 self.recorded_traj[2][j] += z
-            
+        
+        if self.img_feedback_correction:
+            self.recorded_img_feedback_flag[0, self.time_index:] = self.img_feedback_flag
+
+        if self.gripper_feedback_correction:
+            self.recorded_gripper[0, self.time_index:] = self.grip_value
+            # print(self.recorded_gripper)
+
         if self.feedback[3] != 0:
             self.faster_counter = 10
             
-        if self.faster_counter > 0 and i!=self.recorded_traj.shape[1]-1:
+        if self.faster_counter > 0 and self.time_index != self.recorded_traj.shape[1]-1:
             self.faster_counter -= 1
-            self.recorded_traj = np.delete(self.recorded_traj, i+1, 1)
-            self.recorded_ori = np.delete(self.recorded_ori, i+1, 1)
-            self.recorded_gripper = np.delete(self.recorded_gripper, i+1, 1)
+            self.recorded_traj = np.delete(self.recorded_traj, self.time_index+1, 1)
+            self.recorded_ori = np.delete(self.recorded_ori, self.time_index+1, 1)
+            self.recorded_gripper = np.delete(self.recorded_gripper, self.time_index+1, 1)
+            self.recorded_img = np.delete(self.recorded_img, self.time_index+1, 0)
                        
-        self.feedback = np.zeros(4)    
+        self.feedback = np.zeros(4)
+        self.img_feedback_correction = 0
+        self.gripper_feedback_correction = 0
+
+    

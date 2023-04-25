@@ -12,6 +12,7 @@ class Insertion():
         time_spiral = 0
         spiral_success = False
         spiral_width = 2 * np.pi
+        spiral_speed = 1. / 20.
         self.set_stiffness(4000, 4000, 1000, 30, 30, 30, 0)
         for i in range(3000):
             spiral_width = 2 * np.pi   ######### Should we make this a class variable?
@@ -23,7 +24,7 @@ class Insertion():
             if self.force.z <= 1: #np.abs(goal_init[2] - self.curr_pos[2]) < 0.001:
                 spiral_success = True
                 break
-            time_spiral += 1. / 100.
+            time_spiral += spiral_speed
             self.r.sleep()
         self.set_stiffness(4000, 4000, 4000, 30, 30, 30, 0)    
         offset_correction = self.curr_pos - goal_init
