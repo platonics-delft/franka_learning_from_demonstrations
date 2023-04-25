@@ -81,13 +81,14 @@ class ActiveLocalizerNode():
                 rospy.logwarn(e)
                 continue
             self._transformed_pose = self._transformer.transform(box_tf, home_pose)
+            self._panda.set_stiffness(4000, 4000, 4000, 50, 50, 50, 0)
             self._panda.go_to_pose(self._transformed_pose, interp_dist=0.001, interp_dist_polar=0.001)
             rospy.loginfo("Finished go to.")
             pos_error = np.linalg.norm(xy_yaw[:2])
             yaw_error = abs(xy_yaw[2])
             print(f"position error {pos_error}, yaw error {yaw_error}")
 
-            if pos_error < 0.003 and yaw_error < 0.5*(3.14/180):
+            if pos_error < 0.003 and yaw_error < 0.6 *(np.pi/180):
                 final_resp.message = f"Finished localization, final error: {pos_error + yaw_error}"
                 final_resp.success = True
                 print(final_resp.message)
