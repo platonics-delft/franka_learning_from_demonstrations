@@ -1,0 +1,7 @@
+crop:
+- 465
+- 1035
+- 47
+- 454
+template_depth: 561.4938895696076
+template_path: /home/platonics/Documents/robothon/src/franka_ros/robotthon_23_platonics/manipulation_tasks_panda/box_localization/cfg/template_afternoon/full_image.png

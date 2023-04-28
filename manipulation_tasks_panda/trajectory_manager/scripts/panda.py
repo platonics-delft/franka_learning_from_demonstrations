@@ -76,7 +76,6 @@ class Panda():
         goal.header.stamp = rospy.Time.now()
 
         ns_msg = [0, 0, 0, -2.4, 0, 2.4, 0]
-
         self.go_to_pose(goal)
         self.set_configuration(ns_msg)
         self.set_K.update_configuration({f'{str(self.name)}_nullspace_stiffness':10})
@@ -156,7 +155,7 @@ class Panda():
         goal = PoseStamped()
         # self.set_stiffness(4000, 4000, 4000, 50, 50, 50, 0)
         for i in range(step_num):
-            quat=np.slerp_vectorized(q_start, q_goal, i/step_num)
+            quat=np.slerp_vectorized(q_start, q_goal, (i+1)/step_num)
             pos_array = np.array([x[i], y[i], z[i]])
             goal = array_quat_2_pose(pos_array, quat)
             self.goal_pub.publish(goal)

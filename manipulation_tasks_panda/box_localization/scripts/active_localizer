@@ -41,8 +41,6 @@ class ActiveLocalizerNode():
         self._window = Queue(maxsize=10)
         self._service = rospy.Service('active_localizer', Trigger, self.handle_request)
 
-
-
     def image_callback(self, img):
         self._img = img
         """
@@ -54,6 +52,7 @@ class ActiveLocalizerNode():
     def handle_request(self, req):
         final_resp = TriggerResponse()
         self._rate.sleep()
+        self.timeout_counter = 0
         while not rospy.is_shutdown():
             if self._img is None:
                 rospy.logwarn("No Image")
@@ -87,12 +86,12 @@ class ActiveLocalizerNode():
             pos_error = np.linalg.norm(xy_yaw[:2])
             yaw_error = abs(xy_yaw[2])
             print(f"position error {pos_error}, yaw error {yaw_error}")
-
-            if pos_error < 0.003 and yaw_error < 0.6 *(np.pi/180):
+            if (pos_error < 0.003 and yaw_error < 0.4 *(np.pi/180)) or self.timeout_counter > 10:
                 final_resp.message = f"Finished localization, final error: {pos_error + yaw_error}"
                 final_resp.success = True
                 print(final_resp.message)
                 return final_resp
+            self.timeout_counter = self.timeout_counter + 1
 
             # if self._window.full():
             #     self._window.get()

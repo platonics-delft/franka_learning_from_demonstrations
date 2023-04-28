@@ -36,7 +36,9 @@ class LocalizationService():
         rospy.init_node("localization_server")
         self._rate = rospy.Rate(5)
         #self._localizer = Localizer(debug=False)
-        self._localizer = LocalizerSift('template.png')
+        cropping = rospy.get_param("crop")
+        template_path = rospy.get_param("template_path")
+        self._localizer = LocalizerSift(template_path, cropping)
         self.bridge = CvBridge()
         self.image_publisher = rospy.Publisher("/image_detection", Image, queue_size=10)
         self._publisher_counter = 0

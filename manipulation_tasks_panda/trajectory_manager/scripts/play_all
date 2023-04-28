@@ -29,22 +29,37 @@ if __name__ == '__main__':
         lfd.compute_final_transform() 
     
     try:
-        lfd.load("blue_button")
+        lfd.load("blue")
         lfd.execute()
         
         lfd.load("slider")
         lfd.execute()
 
-        lfd.load("cable_door_3")
+        lfd.load("peg_pick")
+        lfd.execute()
+
+        lfd.load("peg_door")
+        lfd.execute()
+
+        lfd.load("peg_place")
+        lfd.execute()
+
+        lfd.load("peg_push")
+        lfd.execute()
+
+        lfd.load("probe_pick")
         lfd.execute()
 
         lfd.load("probe")
         lfd.execute()
 
-        lfd.load("wrap_19")
+        lfd.load("probe_place")
+        lfd.execute(retry_insertion_flag=1)
+
+        lfd.load("wrap_right_2")
         lfd.execute()
 
-        lfd.load("red_button")
+        lfd.load("red")
         lfd.execute()
     except rospy.ROSInterruptException:
         pass

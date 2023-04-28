@@ -24,6 +24,7 @@ class LfD(Panda, Feedback, Insertion, Transform):
         self.recorded_gripper= None
         self.end=False
         self.attractor_distance_threshold=0.05
+        self.final_transform = np.eye(4)
 
         self.listener = Listener(on_press=self._on_press)
         self.listener.start()
@@ -55,10 +56,10 @@ class LfD(Panda, Feedback, Insertion, Transform):
         
         self.recorded_traj = self.curr_pos
         self.recorded_ori = self.curr_ori
-        if self.gripper_width < 0.03:
+        if self.gripper_width < 0.02:
             self.grip_value = 0
         else:
-            self.grip_value = 0.04
+            self.grip_value = 0.025
         self.recorded_gripper= self.grip_value
         
         print("Recording started. Press e to stop.")
@@ -85,34 +86,31 @@ class LfD(Panda, Feedback, Insertion, Transform):
         quat_start = list_2_quaternion(self.recorded_ori[:, 0])
         start = array_quat_2_pose(self.recorded_traj[:, 0], quat_start)
         
-        if self.pose_icp:
-            start = self.transform(start)
-            
+        # start = transform_pose(start, self.final_transform) 
         self.go_to_pose(start)
 
-        i=0
-        while i <( self.recorded_traj.shape[1]):
+        self.time_index=0
+        while self.time_index <( self.recorded_traj.shape[1]):
 
-            quat_goal = list_2_quaternion(self.recorded_ori[:, i])
-            goal = array_quat_2_pose(self.recorded_traj[:, i], quat_goal)
+            quat_goal = list_2_quaternion(self.recorded_ori[:, self.time_index])
+            goal = array_quat_2_pose(self.recorded_traj[:, self.time_index], quat_goal)
             goal.header.seq = 1
             goal.header.stamp = rospy.Time.now()
             ori_threshold = 0.3
             pos_threshold = 0.1
             
-            if self.pose_icp:
-                goal = self.transform(goal)
+            # goal = transform_pose(goal, self.final_transform)
             
             self.correct()
 
-            if (self.recorded_gripper[0][i]-self.recorded_gripper[0][max(0,i-1)]) < -0.02:
+            if (self.recorded_gripper[0][self.time_index]-self.recorded_gripper[0][max(0,self.time_index-1)]) < -0.02:
                 print("closing gripper")
-                self.grasp_gripper(self.recorded_gripper[0][i])
+                self.grasp_gripper(self.recorded_gripper[0][self.time_index])
                 time.sleep(0.1)
 
-            if (self.recorded_gripper[0][i]-self.recorded_gripper[0][max(0,i-1)]) >0.02:
+            if (self.recorded_gripper[0][self.time_index]-self.recorded_gripper[0][max(0,self.time_index-1)]) >0.02:
                 print("open gripper")
-                self.move_gripper(self.recorded_gripper[0][i])
+                self.move_gripper(self.recorded_gripper[0][self.time_index])
                 time.sleep(0.1)
 
             self.goal_pub.publish(goal)
@@ -121,16 +119,16 @@ class LfD(Panda, Feedback, Insertion, Transform):
                 spiral_success, offset_correction = self.spiral_search(goal)
                 self.spiralling_occured = True
                 if spiral_success:
-                    self.recorded_traj[0, i:] += offset_correction[0]
-                    self.recorded_traj[1, i:] += offset_correction[1]
+                    self.recorded_traj[0, self.time_index:] += offset_correction[0]
+                    self.recorded_traj[1, self.time_index:] += offset_correction[1]
 
             goal_pos_array = position_2_array(goal.pose.position)
             if np.linalg.norm(self.curr_pos-goal_pos_array) <= self.attractor_distance_threshold:
-                i=i+1
+                self.time_index=self.time_index+1
             self.r.sleep()
 
             # Stop playback if at end of trajectory (some indices might be deleted by feedback)
-            if i == self.recorded_traj.shape[1]-1:
+            if self.time_index == self.recorded_traj.shape[1]-1:
                 break
         if self.spiralling_occured:
             print(f"recording {self.filename}, spiralling occured")
@@ -146,4 +144,5 @@ class LfD(Panda, Feedback, Insertion, Transform):
         self.recorded_traj = data['traj']
         self.recorded_ori = data['ori']
         self.recorded_gripper = data['grip']
+        self.recorded_traj, self.recorded_ori = self.transform_traj_ori(self.recorded_traj, self.recorded_ori, self.final_transform)
         self.filename=str(file)

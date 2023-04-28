@@ -5,10 +5,14 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
 import tf
 import copy
+from tf.transformations import euler_from_quaternion
+
 class Transform():
     def __init__(self):
         super(Transform, self).__init__()
         trans_base_2_hand = np.array([0.308, -0.000, 0.588])
+
+        self.equilibrium_pose_sub = rospy.Subscriber('/equilibrium_pose', PoseStamped, self.eq_pose_callback)
 
         rot_base_2_hand = list_2_quaternion([-0.002, 1.000, 0.006, -0.002]) 
         self.pose_base_2_hand = array_quat_2_pose(trans_base_2_hand, rot_base_2_hand)
@@ -19,15 +23,18 @@ class Transform():
         self.pose_hand_2_cam = array_quat_2_pose(trans_hand_2_cam, rot_hand_2_cam)
         self.transform_hand_2_cam = pose_st_2_transformation(self.pose_hand_2_cam)
 
-        trans_home_pose = np.array([0.30681743793194804, -0.0005964840257302781, 0.4838100689233732])
-        quat_home_pose = np.quaternion(0.0001316886225132278, 0.9999887362754397, -0.004173250786325315, -0.0005296947552688665)
-        self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
+        # trans_home_pose = np.array([0.30681743793194804, -0.0005964840257302781, 0.4838100689233732])
+        # quat_home_pose = np.quaternion(0.0001316886225132278, 0.9999887362754397, -0.004173250786325315, -0.0005296947552688665)
+        # self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
 
         trans_home_pose = np.array([0.307, 0.000, 0.586])
         quat_home_pose = np.quaternion(-0.001, 1.000, -0.005, -0.002)
         self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
 
         self._tf_listener = tf.TransformListener()
+
+    def eq_pose_callback(self, eq_pose):
+        self.eq_pose = eq_pose
 
     def get_transform(self, source_frame, target_frame):
         while True:
@@ -50,11 +57,20 @@ class Transform():
 
     def compute_final_transform(self):
         transform_new = self.get_transform('panda_link0', 'panda_hand')
-        transform_new[0, 3] = transform_new[0, 3] #- 0.005
-        transform_new[1, 3] = transform_new[1, 3] #+ 0.005
+        # pose_new = transformation_2_pose(transform_new)
+        # ori = [pose_new.pose.orientation.x, pose_new.pose.orientation.y,
+        #        pose_new.pose.orientation.z, pose_new.pose.orientation.w
+        #         ]
+        # yaw = euler_from_quaternion(ori)[2]
+        # offset = -0.03 * yaw
+        # x_offset = -offset * np.cos(yaw)
+        # y_offset = offset * np.sin(yaw)
+
+        # transform_new[0, 3] = transform_new[0, 3] + x_offset
+        # transform_new[1, 3] = transform_new[1, 3] + y_offset
         home_pose_matrix = pose_st_2_transformation(self.home_pose)
         self.final_transform =  transform_new @ np.linalg.inv(home_pose_matrix)
-        print(self.final_transform)
+        print("final transform", self.final_transform)
         return self.final_transform
     
     def compute_final_transform_marker(self):

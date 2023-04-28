@@ -6,6 +6,7 @@ import rospkg
 from geometry_msgs.msg import PoseStamped, Pose, WrenchStamped
 from pynput.keyboard import Listener, KeyCode
 from panda import Panda
+from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
 class Feedback():
     def __init__(self):
         super(Feedback, self).__init__()
@@ -49,7 +50,7 @@ class Feedback():
             self.gripper_feedback_correction = 1
 
         if key == KeyCode.from_char('o'):
-            self.grip_value = 0.025
+            self.grip_value = self.grip_open_width
             self.move_gripper(self.grip_value)
             self.gripper_feedback_correction = 1
         if key == KeyCode.from_char('f'):
@@ -67,7 +68,18 @@ class Feedback():
             self.spiral_flag = 1
         if key == KeyCode.from_char('x'):
             print("spiral disabled")
+
+        if key == KeyCode.from_char('m'):    
             self.spiral_flag = 0
+            quat_goal = list_2_quaternion(self.curr_ori)
+            goal = array_quat_2_pose(self.curr_pos, quat_goal)
+            self.goal_pub.publish(goal)
+            self.set_stiffness(0, 0, 0, 50, 50, 50, 0)
+            print("higher rotatioal stiffness")
+
+        if key == KeyCode.from_char('n'):    
+            self.set_stiffness(0, 0, 0, 0, 0, 0, 0)
+            print("zero rotatioal stiffness")
         key=0
 
     def square_exp(self, ind_curr, ind_j):

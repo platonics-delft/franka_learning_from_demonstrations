@@ -21,6 +21,7 @@ import tf
 import quaternion
 import pdb
 from camera_feedback import CameraFeedback, image_process
+from std_msgs.msg import Float32MultiArray,Float32
 
 class LfD_image(LfD, CameraFeedback):
     def __init__(self):
@@ -37,6 +38,8 @@ class LfD_image(LfD, CameraFeedback):
         self.annotated_img_pub = rospy.Publisher('/annotated_img', Image, queue_size=0)
         self.current_template_pub = rospy.Publisher('/current_template', Image, queue_size=0)
         self.corrected_goal_pub = rospy.Publisher('/corrected_goal', PoseStamped, queue_size=0)
+        self.pos_2_goal_diff = rospy.Publisher('/pos_2_goal', Float32, queue_size=0)
+
         self.bridge = CvBridge()
         self._tf_broadcaster = tf.TransformBroadcaster()
 
@@ -47,6 +50,7 @@ class LfD_image(LfD, CameraFeedback):
         self.width = 1280
         self.width_ds = int(1280/4)
         self.end = False
+        self.grip_open_width = 0.02
 
         # self.row_crop_pct_top = 0.3
         # self.row_crop_pct_bot = 0.9
@@ -58,6 +62,14 @@ class LfD_image(LfD, CameraFeedback):
 
         # self.x_dist_threshold = 5
         # self.y_dist_threshold = 5
+
+        self.insertion_force_threshold = 6
+        self.retry_counter = 0
+
+        self.slider_sub=rospy.Subscriber("/slider_node/result", Float32MultiArray, self.slider_callback)
+        self.screen_yellow_distance=None
+        self.screen_green_distance=None
+        self.screen_orientation=None
 
         ros_pack = rospkg.RosPack()
         self._package_path = ros_pack.get_path('trajectory_manager')
@@ -73,6 +85,11 @@ class LfD_image(LfD, CameraFeedback):
 
         except CvBridgeError as e:
             print(e)
+
+    def slider_callback(self, msg):
+        self.screen_yellow_distance = msg.data[0]
+        self.screen_green_distance = msg.data[1]
+        self.screen_orientation = msg.data[2]
 
     def traj_rec(self, trigger=0.005, rec_position=True, rec_orientation=True):
         # trigger for starting the recording
@@ -92,11 +109,10 @@ class LfD_image(LfD, CameraFeedback):
             vel = math.sqrt((self.curr_pos[0]-init_pos[0])**2 + (self.curr_pos[1]-init_pos[1])**2 + (self.curr_pos[2]-init_pos[2])**2)
         self.recorded_traj = self.curr_pos
         self.recorded_ori = self.curr_ori
-        if self.gripper_width < 0.02:
+        if self.gripper_width < self.grip_open_width * 0.9:
             self.grip_value = 0
         else:
-            self.grip_value = 0.025
-        self.recorded_gripper= self.grip_value
+            self.grip_value = self.grip_open_width
         self.recorded_gripper= self.grip_value
         self.recorded_img_feedback_flag = np.array([0])
         self.recorded_spiral_flag = np.array([0])
@@ -140,7 +156,7 @@ class LfD_image(LfD, CameraFeedback):
         self.set_stiffness(100, 100, 100, 5, 5, 5, 0)
         rospy.loginfo("Ending trajectory recording")
 
-    def execute(self):
+    def execute(self, retry_insertion_flag=0):
         self.spiralling_occured = False
         # print("spiral flag", bool(int(spiral_flag)))
         print('entered execute')
@@ -149,23 +165,24 @@ class LfD_image(LfD, CameraFeedback):
         quat_start = list_2_quaternion(self.recorded_ori[:, 0])
         start = array_quat_2_pose(self.recorded_traj[:, 0], quat_start)
         
-        ns_msg = [0, 0, 0, -2.4, 0, 2.4, 0]
-        self.set_configuration(ns_msg)
+        ns_msg = [-0.0, -0.78775220299602, -0, -2.363247138397349, -0.0, 1.5758730952857454, 0.7762000998565743]
+        # self.set_configuration(ns_msg)
         
-        self.set_stiffness(0, 0, 0, 0, 0, 0, 10)
-        rospy.sleep(5)
-        self.set_stiffness(1000, 1000, 1000, 20, 20, 20, 20)    
+        # self.set_stiffness(0, 0, 0, 0, 0, 0, 10)
+        # rospy.sleep(2)
+        # self.set_stiffness(1000, 1000, 1000, 20, 20, 20, 20)    
         self.go_to_pose(start)
         self.set_stiffness(2000, 2000, 2000, 30, 30, 30, 0)
 
         self.time_index=0
         z_sum = 0
 
-        if self.recorded_gripper[0][0] == 0:
+        if self.recorded_gripper[0][0] < self.grip_open_width/2 and self.gripper_width > 0.9 * self.grip_open_width:
             print("closing gripper")
             self.grasp_gripper(self.recorded_gripper[0][self.time_index])
+            # self.move_gripper(self.recorded_gripper[0][self.time_index])
             time.sleep(0.1)
-        if self.recorded_gripper[0][0] == 1:
+        if self.recorded_gripper[0][0] > self.grip_open_width/2:
             print("opening gripper")
             self.move_gripper(self.recorded_gripper[0][self.time_index])
             time.sleep(0.1)
@@ -181,18 +198,19 @@ class LfD_image(LfD, CameraFeedback):
             
             self.correct()
 
-            if (self.recorded_gripper[0][self.time_index]-self.recorded_gripper[0][max(0,self.time_index-1)]) < -0.02:
+            if (self.recorded_gripper[0][self.time_index]-self.recorded_gripper[0][max(0,self.time_index-1)]) < -self.grip_open_width/2:
                 print("closing gripper")
                 self.grasp_gripper(self.recorded_gripper[0][self.time_index])
+                # self.move_gripper(self.recorded_gripper[0][self.time_index])
                 time.sleep(0.1)
 
-            if (self.recorded_gripper[0][self.time_index]-self.recorded_gripper[0][max(0,self.time_index-1)]) >0.02:
+            if (self.recorded_gripper[0][self.time_index]-self.recorded_gripper[0][max(0,self.time_index-1)]) > self.grip_open_width/2:
                 print("open gripper")
                 self.move_gripper(self.recorded_gripper[0][self.time_index])
                 time.sleep(0.1)
             self.goal_pub.publish(goal)
 
-            if self.recorded_img_feedback_flag[0, self.time_index] and not self.time_index % 1:
+            if self.recorded_img_feedback_flag[0, self.time_index] and not self.time_index % 2:
                 # self.template_matching()
                 self.sift_matching()
             
@@ -205,8 +223,19 @@ class LfD_image(LfD, CameraFeedback):
                         self.recorded_traj[1, self.time_index:] += offset_correction[1]
 
             goal_pos_array = position_2_array(goal.pose.position)
-            if np.linalg.norm(self.curr_pos-goal_pos_array) <= self.attractor_distance_threshold:
+            pos_2_goal_diff = np.linalg.norm(self.curr_pos-goal_pos_array)
+            self.pos_2_goal_diff.publish(pos_2_goal_diff)
+            if pos_2_goal_diff <= self.attractor_distance_threshold:
                 self.time_index=self.time_index + 1
+
+            force_xy_plane = np.sqrt(self.force.x ** 2 + self.force.y ** 2)
+            if retry_insertion_flag and force_xy_plane > self.insertion_force_threshold:
+                if self.retry_counter >= 3:
+                    self.move_gripper(self.grip_open_width)
+                    break
+                self.go_to_pose(start)
+                self.time_index = 0
+                self.retry_counter = self.retry_counter + 1
             self.r.sleep()
 
             # Stop playback if at end of trajectory (some indices might be deleted by feedback)

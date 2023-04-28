@@ -1,6 +1,9 @@
 import numpy as np
 import cv2
 from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Point
+import rospy
 
 def image_process(image, ds_factor, row_crop_top, row_crop_bottom, col_crop_left, col_crop_right):
     h, w = image.shape[:2]
@@ -25,13 +28,14 @@ class CameraFeedback():
         super().__init__()
         self.row_crop_pct_top = 0.3
         self.row_crop_pct_bot = 0.9
-        self.col_crop_pct_left = 0.6
+        self.col_crop_pct_left = 0.4
         self.col_crop_pct_right = 0.8
 
         self.ds_factor = 4
 
-        self.x_dist_threshold = 4
-        self.y_dist_threshold = 4
+        self.x_dist_threshold = 2
+        self.y_dist_threshold = 2
+        self.marker_pub = rospy.Publisher("/visualization_marker", Marker, queue_size = 2)
 
 
     def template_matching(self):
@@ -94,8 +98,8 @@ class CameraFeedback():
     def sift_matching(self):
 
         self.image_process(self.ds_factor,  0, 1, 0, 1)
-        idx=np.argmin(np.linalg.norm(self.recorded_traj-(self.curr_pos).reshape(3,1),axis=0))
-        # idx = self.time_index
+        # idx=np.argmin(np.linalg.norm(self.recorded_traj-(self.curr_pos).reshape(3,1),axis=0))
+        idx = self.time_index - 1
 
         # recorded_image_msg = self.bridge.cv2_to_imgmsg(self.recorded_img[idx])
 
@@ -122,10 +126,12 @@ class CameraFeedback():
         # store all the good matches as per Lowe's ratio test.
         good = []
         for m, n in matches:
-            if m.distance < 0.4 * n.distance:
+            if m.distance < 0.7 * n.distance:
                 good.append(m)
             # translate keypoints back to full source template
         cx_cy_array = np.array([639.329345703125, 376.771240234375])
+        cx_cy_array = cx_cy_array / self.ds_factor
+
         # cx_cy_array = np.array([0, 0])
         # print("before", kp1[0].pt)
 
@@ -143,7 +149,7 @@ class CameraFeedback():
             self._dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
             transform_pixels, inliers = cv2.estimateAffinePartial2D(self._src_pts, self._dst_pts)
-            print("transform", transform_pixels)
+            # print("transform", transform_pixels)
             scaling_factor = 1 - np.sqrt(np.linalg.det(transform_pixels[0:2, 0:2]))
 
 
@@ -152,7 +158,7 @@ class CameraFeedback():
 
             transform_correction = np.identity(4)
             # transform_correction[0:2, 0:2] = transform_pixels[:, :2]
-            correction_increment = 0.001
+            correction_increment = 0.0005
             if abs(x_distance) > self.x_dist_threshold:
                 transform_correction[0, 3] = np.sign(x_distance) * correction_increment
                 print("correcting x")
@@ -163,8 +169,8 @@ class CameraFeedback():
             if abs(scaling_factor) > 0.05:
                 transform_correction[2,3] = np.sign(scaling_factor) * correction_increment
                 print("correcting z")
-
-            # gain = correction_increment / self.x_dist_threshold * 0.1
+            # correction_increment = 0.001
+            # gain = 0.0001 * 0.5 
             # if abs(x_distance) > self.x_dist_threshold:
             #     transform_correction[0, 3] = x_distance * gain
             #     print("correcting x")
@@ -175,6 +181,11 @@ class CameraFeedback():
             # if abs(scaling_factor) > 0.05:
             #     transform_correction[2,3] = np.sign(scaling_factor) * correction_increment
             #     print("correcting z")
+
+        for k in kp1:
+            k.pt = (k.pt[0] + cx_cy_array[0], k.pt[1] + cx_cy_array[1])
+        for k in kp2:
+            k.pt = (k.pt[0] + cx_cy_array[0], k.pt[1] + cx_cy_array[1])
 
         if len(good) > 4:
             try:
@@ -199,17 +210,45 @@ class CameraFeedback():
             except Exception as e:
                 print(e)
 
-
-
-
-
-
         transform_base_2_cam = self.get_transform('panda_link0', 'camera_color_optical_frame')
         transform = transform_base_2_cam @ transform_correction @ np.linalg.inv(transform_base_2_cam)
         # print("pixel transform", transform_pixels)
         # print("base transform", transform)
-        transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
+        if self.filename != 'probe_place':
+            transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
         self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
+        self.publish_correction_marker(transform)
 
 
+    def publish_correction_marker(self, transform):
+        marker = Marker()
 
+        marker.header.frame_id = "panda_link0"
+        marker.header.stamp = rospy.Time.now()
+
+        # set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+        marker.type = 0
+        marker.id = 0
+
+        point_begin = Point()
+        point_begin.x = self.curr_pos[0]
+        point_begin.y = self.curr_pos[1]
+        point_begin.z = self.curr_pos[2]
+        point_end = Point()
+        point_end.x = (self.curr_pos[0] + transform[0, 3]) * 1.2
+        point_end.y = (self.curr_pos[1] + transform[1,3]) * 1.2
+        point_end.z = self.curr_pos[2]
+
+        marker.points = [point_begin, point_end]
+        # Set the scale of the marker
+        marker.scale.x = 0.005
+        marker.scale.y = 0.01
+        marker.scale.z = 0
+
+        # Set the color
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 0.0
+        marker.color.a = 1.0
+
+        self.marker_pub.publish(marker)
