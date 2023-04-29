@@ -56,7 +56,7 @@ if __name__ == '__main__':
         lfd.load("probe_place")
         lfd.execute(retry_insertion_flag=1)
 
-        lfd.load("wrap_right_2")
+        lfd.load("wrap_")
         lfd.execute()
 
         lfd.load("red")
