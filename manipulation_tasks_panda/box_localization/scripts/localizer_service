@@ -1,41 +1,21 @@
 #!/usr/bin/env python3
-import sys
-import os
-from geometry_msgs.msg import PointStamped
 from geometry_msgs.msg import Pose, PoseStamped
-from std_msgs.msg import Bool
 import rospy
 from sensor_msgs.msg import Image, PointCloud2 
-from robothon23vision.localization.localizer import Localizer
 from robothon23vision.localization.localizer_sift import Localizer as LocalizerSift
 from robothon23vision.detectors import *
 import numpy as np
-import ros_numpy
-import dynamic_reconfigure.client
 
 from box_localization.srv import ComputeLocalization, ComputeLocalizationResponse
 
 import tf
 
 from cv_bridge import CvBridge, CvBridgeError
-import cv2
-from cv2 import imshow, waitKey, imwrite, COLOR_BGR2RGB, cvtColor
-
-from queue import Queue
-
-def median_of_queue(q):
-    n = q.qsize()
-    median = np.median(np.array(list(q.queue)), axis=0)
-    return median
-
-
-
 
 class LocalizationService():
     def __init__(self) -> None:
         rospy.init_node("localization_server")
         self._rate = rospy.Rate(5)
-        #self._localizer = Localizer(debug=False)
         cropping = rospy.get_param("crop")
         template_path = rospy.get_param("template_path")
         self._localizer = LocalizerSift(template_path, cropping)
@@ -80,7 +60,6 @@ class LocalizationService():
         tf_matrix = self.compute_localization_in_pixels(req.img)
         # tf_matrix[0:3, 0:3] = np.identity(3)
 
-
         position = tf_matrix[0:3, 3]
         quaternion = tf.transformations.quaternion_from_matrix(tf_matrix[0:4, 0:4])
         quaternion = quaternion/np.linalg.norm(quaternion)
@@ -94,7 +73,6 @@ class LocalizationService():
         pose.pose.orientation.y = quaternion[1]
         pose.pose.orientation.z = quaternion[2]
         self.publish_annoted_image()
-
     
         return ComputeLocalizationResponse(pose)
 
@@ -103,7 +81,6 @@ class LocalizationService():
         while not rospy.is_shutdown():
             self._rate.sleep()
     
-
 if __name__ == '__main__':
     simple_localizer_node = LocalizationService()
     try:
