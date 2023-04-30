@@ -33,8 +33,11 @@ class CameraFeedback():
 
         self.ds_factor = 4
 
-        self.x_dist_threshold = 2
+        self.x_dist_threshold = 2      # Thresholds to trigger feedback corrections
         self.y_dist_threshold = 2
+
+        self.cx_cy_array = np.array([639.329345703125, 376.771240234375])    # Principal point offsets of your camera
+
         self.marker_pub = rospy.Publisher("/visualization_marker", Marker, queue_size = 2)
 
 
@@ -81,15 +84,6 @@ class CameraFeedback():
         transform = transform_base_2_cam @ transform_correction @ np.linalg.inv(transform_base_2_cam)
         transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
 
-        # corrected_pos = position_2_array(goal.pose.position) + transform[:3,3]
-        # corrected_quat = orientation_2_quaternion(goal.pose.orientation)
-        # corrected_goal = array_quat_2_pose(corrected_pos, corrected_quat)
-        # transform_rot = tuple([corrected_quat.x, corrected_quat.y, corrected_quat.z, corrected_quat.w])
-
-        # self._tf_broadcaster.sendTransform(tuple(corrected_pos), transform_rot, rospy.Time.now(), 'new_goal', 'panda_link0')
-
-        # corrected_goal.header.frame_id = 'panda_link0'
-        # self.corrected_goal_pub.publish(corrected_goal)
         if min_val < 0.3:
             if (abs(x_distance) > self.x_dist_threshold and abs(x_distance) < 20) or (abs(y_distance) > self.y_dist_threshold and abs(y_distance) < 20):
                 print("applying correction ", x_distance, " ", y_distance)
@@ -102,10 +96,7 @@ class CameraFeedback():
         idx = self.time_index - 1
 
         # recorded_image_msg = self.bridge.cv2_to_imgmsg(self.recorded_img[idx])
-
         # self.current_template_pub.publish(recorded_image_msg)  
-
-        # gray = cv2.cvtColor(self.resized_img_gray, cv2.COLOR_BGR2GRAY)
 
         # initiate SIFT detector
         sift = cv2.SIFT_create()
@@ -129,21 +120,17 @@ class CameraFeedback():
             if m.distance < 0.7 * n.distance:
                 good.append(m)
             # translate keypoints back to full source template
-        cx_cy_array = np.array([639.329345703125, 376.771240234375])
-        cx_cy_array = cx_cy_array / self.ds_factor
+        cx_cy_array_ds = self.cx_cy_array / self.ds_factor
 
-        # cx_cy_array = np.array([0, 0])
-        # print("before", kp1[0].pt)
 
         for k in kp1:
-            k.pt = (k.pt[0] + self.col_crop_pct_left * self.resized_img_gray.shape[1] - cx_cy_array[0], k.pt[1] + self.row_crop_pct_top * self.resized_img_gray.shape[0] - cx_cy_array[1])
+            k.pt = (k.pt[0] + self.col_crop_pct_left * self.resized_img_gray.shape[1] - cx_cy_array_ds[0], k.pt[1] + self.row_crop_pct_top * self.resized_img_gray.shape[0] - cx_cy_array_ds[1])
         for k in kp2:
-            k.pt = (k.pt[0] - cx_cy_array[0], k.pt[1] - cx_cy_array[1])
+            k.pt = (k.pt[0] - cx_cy_array_ds[0], k.pt[1] - cx_cy_array_ds[1])
         # print("after", kp1[0].pt)
 
         transform_correction = np.eye(4)
         transform_pixels = np.eye(2)
-        transform_pixels = np.hstack((transform_pixels, np.array([[0], [0]])))
         if len(good) > 4:
             self._src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
             self._dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
@@ -157,7 +144,6 @@ class CameraFeedback():
             y_distance = transform_pixels[1, 2]
 
             transform_correction = np.identity(4)
-            # transform_correction[0:2, 0:2] = transform_pixels[:, :2]
             correction_increment = 0.0005
             if abs(x_distance) > self.x_dist_threshold:
                 transform_correction[0, 3] = np.sign(x_distance) * correction_increment
@@ -169,23 +155,11 @@ class CameraFeedback():
             if abs(scaling_factor) > 0.05:
                 transform_correction[2,3] = np.sign(scaling_factor) * correction_increment
                 print("correcting z")
-            # correction_increment = 0.001
-            # gain = 0.0001 * 0.5 
-            # if abs(x_distance) > self.x_dist_threshold:
-            #     transform_correction[0, 3] = x_distance * gain
-            #     print("correcting x")
-            # if abs(y_distance) > self.y_dist_threshold:
-            #     transform_correction[1, 3] = y_distance * gain
-            #     print("correcting y")
-
-            # if abs(scaling_factor) > 0.05:
-            #     transform_correction[2,3] = np.sign(scaling_factor) * correction_increment
-            #     print("correcting z")
 
         for k in kp1:
-            k.pt = (k.pt[0] + cx_cy_array[0], k.pt[1] + cx_cy_array[1])
+            k.pt = (k.pt[0] + cx_cy_array_ds[0], k.pt[1] + cx_cy_array_ds[1])
         for k in kp2:
-            k.pt = (k.pt[0] + cx_cy_array[0], k.pt[1] + cx_cy_array[1])
+            k.pt = (k.pt[0] + cx_cy_array_ds[0], k.pt[1] + cx_cy_array_ds[1])
 
         if len(good) > 4:
             try:
@@ -212,8 +186,7 @@ class CameraFeedback():
 
         transform_base_2_cam = self.get_transform('panda_link0', 'camera_color_optical_frame')
         transform = transform_base_2_cam @ transform_correction @ np.linalg.inv(transform_base_2_cam)
-        # print("pixel transform", transform_pixels)
-        # print("base transform", transform)
+
         if self.filename != 'probe_place':
             transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
         self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
