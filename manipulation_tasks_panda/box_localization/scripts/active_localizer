@@ -1,29 +1,17 @@
 #!/usr/bin/env python3
 import sys
-import time
 sys.path.append('/home/platonics/Documents/robothon/src/franka_ros/robotthon_23_platonics/manipulation_tasks_panda/trajectory_manager/scripts')
-from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Bool
 import rospy
 from std_srvs.srv import Trigger, TriggerResponse
 from sensor_msgs.msg import Image, PointCloud2 
-from robothon23vision.localization.localizer import Localizer
 from robothon23vision.detectors import *
 from panda import Panda
 from transform import Transform
 from box_localization.srv import ComputeLocalization
 from manipulation_helpers.pose_transform_functions import list_2_quaternion, array_quat_2_pose, pose_st_2_transformation
 import numpy as np
-import ros_numpy
-import dynamic_reconfigure.client
 
-import tf
 from tf.transformations import euler_from_quaternion
-
-from cv_bridge import CvBridge, CvBridgeError
-import cv2
-from cv2 import imshow, waitKey, imwrite, COLOR_BGR2RGB, cvtColor
-
 from queue import Queue
 
 class ActiveLocalizerNode():
@@ -74,7 +62,6 @@ class ActiveLocalizerNode():
                     resp.pose.pose.position.y,
                     euler_from_quaternion(ori)[2]
                 ]
-                # self._window.put(xy_yaw)
 
             except Exception as e:
                 rospy.logwarn(e)
@@ -93,23 +80,6 @@ class ActiveLocalizerNode():
                 return final_resp
             self.timeout_counter = self.timeout_counter + 1
 
-            # if self._window.full():
-            #     self._window.get()
-            #     median_xy_yaw = np.median(np.array(list(self._window.queue)), axis=0)
-            #     pos_error = np.linalg.norm(median_xy_yaw[:2])
-            #     yaw_error = median_xy_yaw[2]
-            #     print(f"position error {pos_error}, yaw error {yaw_error}")
-            #     if (pos_error + yaw_error) < 0.03:
-            #         final_resp.message = f"Finished localization, final error: {pos_error + yaw_error}"
-            #         final_resp.success = True
-            #         print(final_resp.message)
-                    # return final_resp
-
-
 if __name__ == '__main__':
     active_localizer_node = ActiveLocalizerNode()
     rospy.spin()
-    # try:
-    #     # active_localizer_node.run()
-    # except rospy.ROSInterruptException:
-    #     pass
