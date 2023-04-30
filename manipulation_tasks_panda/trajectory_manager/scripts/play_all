@@ -2,9 +2,7 @@
 """
 Playback of trajectories and storing them into a databaseself.
 """
-from lfd import LfD
 from lfd_image import LfD_image
-import sys
 from std_srvs.srv import Trigger
 import sys
 import os
@@ -12,15 +10,12 @@ import rospy
 
 if __name__ == '__main__':
     try:
-        # trajectory_name = sys.argv[1]
         localization_flag = sys.argv[1]
     except IndexError:
-        print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
+        print("Usage: " + os.path.basename(__file__) + "< 0 or 1 to deactivate/activate localization >")
         sys.exit(1)
 
     lfd = LfD_image()
-    # else:
-    #     lfd = LfD()
 
     if int(localization_flag):
         rospy.wait_for_service('active_localizer')
@@ -56,7 +51,7 @@ if __name__ == '__main__':
         lfd.load("probe_place")
         lfd.execute(retry_insertion_flag=1)
 
-        lfd.load("wrap_")
+        lfd.load("wrap")
         lfd.execute()
 
         lfd.load("red")
