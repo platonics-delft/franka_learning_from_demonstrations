@@ -2,7 +2,6 @@
 #!/usr/bin/env python
 import os
 import sys
-import torch
 import cv2
 import rospy
 import math
@@ -16,7 +15,6 @@ from cv_bridge import CvBridge, CvBridgeError
 from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
 from cv_bridge import CvBridgeError, CvBridge
 from lfd import LfD
-from visual_servoing import max_correlation, template_matching, template_matching_SSD
 import tf
 import quaternion
 import pdb
@@ -211,7 +209,6 @@ class LfD_image(LfD, CameraFeedback):
             self.goal_pub.publish(goal)
 
             if self.recorded_img_feedback_flag[0, self.time_index] and not self.time_index % 2:
-                # self.template_matching()
                 self.sift_matching()
             
             if self.recorded_spiral_flag[0, self.time_index]:
