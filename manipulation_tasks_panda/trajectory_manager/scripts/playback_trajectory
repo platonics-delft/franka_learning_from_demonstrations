@@ -2,11 +2,9 @@
 """
 Playback of trajectories and storing them into a databaseself.
 """
-from lfd import LfD
 from lfd_image import LfD_image
 import sys
 import os
-from std_srvs.srv import Trigger
 import rospy
 
 if __name__ == '__main__':
@@ -20,11 +18,7 @@ if __name__ == '__main__':
 
     lfd.load(trajectory_name)
     try:
-        # lfd.compute_final_box_transform()
-        if 'probe_place' in trajectory_name:
-            retry_insertion_flag=1
-        else:
-            retry_insertion_flag=0
+        retry_insertion_flag=0
         lfd.execute(retry_insertion_flag=retry_insertion_flag)
     except rospy.ROSInterruptException:
         pass

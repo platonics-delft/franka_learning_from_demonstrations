@@ -1,18 +1,14 @@
 #%%
 #!/usr/bin/env python
 import rospy
-import math
 import numpy as np
 import quaternion
-import time
-import rospkg
 from geometry_msgs.msg import PoseStamped, Pose
 from std_msgs.msg import Float32MultiArray
-from pynput.keyboard import Listener, KeyCode
 from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
 from panda import Panda
 import copy
-import pdb
+
 class LfD(Panda):
     def __init__(self):
         super().__init__()

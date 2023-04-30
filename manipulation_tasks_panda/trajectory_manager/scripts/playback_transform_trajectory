@@ -2,9 +2,7 @@
 """
 Playback of trajectories and storing them into a databaseself.
 """
-from lfd import LfD
 from lfd_image import LfD_image
-import sys
 from std_srvs.srv import Trigger
 import sys
 import os
@@ -19,8 +17,6 @@ if __name__ == '__main__':
         sys.exit(1)
 
     lfd = LfD_image()
-    # else:
-    #     lfd = LfD()
 
     if int(localization_flag):
         rospy.wait_for_service('active_localizer')
@@ -29,9 +25,9 @@ if __name__ == '__main__':
         lfd.compute_final_transform() 
     
     try:
-   
+        retry_insertion_flag=0
         lfd.load(trajectory_name)
-        lfd.execute()
+        lfd.execute(retry_insertion_flag=retry_insertion_flag)
     except rospy.ROSInterruptException:
         pass
 

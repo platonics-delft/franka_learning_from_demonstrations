@@ -1,12 +1,9 @@
 #%%
 #!/usr/bin/env python
 import rospy
-import sys
 import math
 import numpy as np
 import quaternion # pip install numpy-quaternion
-import time
-import rospkg
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import PoseStamped, Pose, WrenchStamped
 from std_msgs.msg import Float32MultiArray, Float32
@@ -133,7 +130,6 @@ class Panda():
         
         q_goal=np.quaternion(goal_pose.pose.orientation.w, goal_pose.pose.orientation.x, goal_pose.pose.orientation.y, goal_pose.pose.orientation.z)
         
-        ##### Why is this step needed?
         inner_prod=q_start.x*q_goal.x+q_start.y*q_goal.y+q_start.z*q_goal.z+q_start.w*q_goal.w
         if inner_prod < 0:
             q_start.x=-q_start.x

@@ -2,8 +2,7 @@
 """
 Recording trajectories and storing them into a databaseself.
 """
-from lfd import LfD
-from lfd_image import LfD_image 
+from lfd_image import LfD_image
 import sys
 import os
 import rospy
@@ -11,15 +10,12 @@ import rospy
 if __name__ == '__main__':
     try:
         traj_name = sys.argv[1]
-        # record_camera = sys.argv[2]
     except IndexError:
         print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
         sys.exit(1)
 
     try:
         lfd = LfD_image()
-        # else:
-        #     lfd = LfD()
         lfd.traj_rec()
         lfd.save(traj_name)
     except rospy.ROSInterruptException:
