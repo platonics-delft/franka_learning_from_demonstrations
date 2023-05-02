@@ -8,8 +8,9 @@ import cv2
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy import signal
-
-
+from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
+from scipy.signal import find_peaks
 class SliderNode:
     def __init__(self):
         # Initialize ROS node
@@ -120,29 +121,73 @@ class SliderNode:
         ## Step 5: First top arrow detection (white)
         mean_all = np.mean(np.mean(cropped_img[: h // 2, :], axis=2), axis=0)
         mean_all = gaussian_filter1d(mean_all, sigma=10)
-        idx_top_1 = mean_all.argmax()
+        # idx_top_1 = mean_all.argmax()
+        ind = np.argpartition(mean_all, -4)[-4:]
+        x=mean_all
+        window_size = 5
+        x_smooth = np.convolve(x, np.ones(window_size)/window_size, mode='valid')
+        # print(x_smooth)
+        # Find the peaks in the smoothed data
 
-        ## Step 6: Second top arrow detection (green)
-        rel_mean_greens = np.mean(cropped_img[: h // 4, :, 1], axis=0) - np.median(
-            cropped_img[5, :, 1]
-        )
-        #rel_mean_greens = cropped_img[5, :, 1] - np.median(cropped_img[5, :, 1])
-        rel_mean_greens = gaussian_filter1d(rel_mean_greens, sigma=10)
-        # mean_reds = np.mean(cropped_img[: h // 4, :, 2], axis=0)
-        # filter out white peak
-        rel_mean_greens[idx_top_1 - 30 : idx_top_1 + 30] = 0
-        idx_top_2 = rel_mean_greens.argmax()
+        x_right=x_smooth[int(w*0.6):]
+        x_left=x_smooth[:int(w*0.4)]
+        if np.max(x_right) > np.max(x_left):
+            x_smooth=x_right
+            peaks, _ = find_peaks(x_smooth)
+            cropped_img[: h // 4, int(w*0.6)+ peaks[0]] = [0, 255, 0]
+        else:
+            x_smooth=x_left    
+            peaks, _ = find_peaks(x_smooth)
+            cropped_img[: h // 4,  peaks[0]] = [0, 255, 0]
+        # print(peaks)
+        # Select the two highest peaks
+        # highest_peaks_ind = np.argsort(x_smooth[peaks])[-2:]
+        # print(ind)
+        # print(mean_all)
+        # kmeans = GaussianMixture(n_clusters=2,n_init=2 ,random_state=0)
+        # gmm = GaussianMixture(n_components=2 ,random_state=0)
+        # X=mean_all.reshape(-1, 1)
+        # gmm.fit(X)
+
+        # y_pred = gmm.predict(X)
+
+        # # Get the indices of the first cluster
+        # cluster1_indices = np.where(y_pred == 0)[0]
+        # cluster2_indices = np.where(y_pred == 1)[0]
+        # m1=int(np.mean(cluster1_indices))
+        # m2=int(np.mean(cluster2_indices))
+        # print(np.median(cluster1_indices))
+        # print(np.median(cluster2_indices))
+        # print(kmeans.cluster_centers_)
+        # print(kmeans.means_)
+        # print(0)
+       
+        # cropped_img[: h // 4, peaks[1]] = [0, 255, 0]
+        # cropped_img[: h // 4, peaks[2]] = [0, 255, 0]
+        # print(highest_peaks_ind[1])
+            # print(index)
+
+        # ## Step 6: Second top arrow detection (green)
+        # rel_mean_greens = np.mean(cropped_img[: h // 4, :, 1], axis=0) - np.median(
+        #     cropped_img[5, :, 1]
+        # )
+        # #rel_mean_greens = cropped_img[5, :, 1] - np.median(cropped_img[5, :, 1])
+        # rel_mean_greens = gaussian_filter1d(rel_mean_greens, sigma=10)
+        # # mean_reds = np.mean(cropped_img[: h // 4, :, 2], axis=0)
+        # # filter out white peak
+        # rel_mean_greens[idx_top_1 - 30 : idx_top_1 + 30] = 0
+        # idx_top_2 = rel_mean_greens.argmax()
 
         ## Step 7: Optionally draw cropped slider image with detections
-        cropped_img[3 * h // 4 :, idx_bot] = [0, 255, 0]
-        cropped_img[: h // 4, idx_top_1] = [255, 0, 0]
+        cropped_img[3 * h // 4 , idx_bot] = [0, 255, 0]
+        # cropped_img[: h // 4, idx_top_1] = [255, 0, 0]
 
-        if rel_mean_greens[idx_top_2] > 17:
-            print("green detected")
-            cropped_img[: h // 4, idx_top_2] = [0, 0, 255]
-            self.result.data[1] = idx_bot - idx_top_2
-        self.result.data[0] = idx_bot - idx_top_1
-        self.result.data[2] = angle
+        # if rel_mean_greens[idx_top_2] > 17:
+        #     print("green detected")
+        #     # cropped_img[: h // 4, idx_top_2] = [0, 0, 255]
+        #     self.result.data[1] = idx_bot - idx_top_2
+        # self.result.data[0] = idx_bot - idx_top_1
+        # self.result.data[2] = angle
 
         cropped_image_msg = bridge.cv2_to_imgmsg(cropped_img, encoding="bgr8")
         self.cropped_image_pub.publish(cropped_image_msg)
