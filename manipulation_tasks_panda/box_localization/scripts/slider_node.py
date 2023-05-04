@@ -119,8 +119,12 @@ class SliderNode:
         idx_bot = mean_reds.argmax()
 
         ## Step 5: First top arrow detection (white)
-        mean_all = np.mean(np.mean(cropped_img[: h // 2, :], axis=2), axis=0)
+        mean_all = np.mean(cropped_img[: h // 2, :, 1], axis=0) - np.mean(cropped_img[: h // 2, :, 2], axis=0)
         mean_all = gaussian_filter1d(mean_all, sigma=10)
+        print(mean_all.shape)
+
+        
+
         # idx_top_1 = mean_all.argmax()
         ind = np.argpartition(mean_all, -4)[-4:]
         x=mean_all
@@ -128,17 +132,35 @@ class SliderNode:
         x_smooth = np.convolve(x, np.ones(window_size)/window_size, mode='valid')
         # print(x_smooth)
         # Find the peaks in the smoothed data
+        peaks, _ = find_peaks(x_smooth)
+        # peaks= np.argmax(x_smooth)
+        triangle_position=peaks[0]
+        triangle_position=np.argmax(x)
 
-        x_right=x_smooth[int(w*0.6):]
-        x_left=x_smooth[:int(w*0.4)]
-        if np.max(x_right) > np.max(x_left):
-            x_smooth=x_right
-            peaks, _ = find_peaks(x_smooth)
-            cropped_img[: h // 4, int(w*0.6)+ peaks[0]] = [0, 255, 0]
-        else:
-            x_smooth=x_left    
-            peaks, _ = find_peaks(x_smooth)
-            cropped_img[: h // 4,  peaks[0]] = [0, 255, 0]
+
+        # start_right=109+0#w*0.6
+        # start_left=109-0#w*0.4
+        # x_right=x_smooth[int(start_right):]
+        # x_left=x_smooth[:int(start_left)]
+        # # print(idx_bot)
+        # if np.max(x_right) > np.max(x_left):
+        #     x_smooth=x_right
+        #     peaks, _ = find_peaks(x_smooth)
+        #     # peaks= np.argmax(x_smooth)
+        #     triangle_position=int(start_right)+ peaks[0]
+        #     # triangle_position=int(w*0.52)+ peaks
+        # else:
+        #     x_smooth=x_left    
+        #     peaks, _ = find_peaks(x_smooth)
+        #     # peaks= np.argmax(x_smooth)
+        #     triangle_position=peaks[0]
+        #     # triangle_position=peaks
+        
+        cropped_img[: h // 4,  triangle_position] = [0, 255, 0]
+        self.result.data[1] = idx_bot - triangle_position
+        print(idx_bot)
+        # print(self.result.data[1])       
+        # self.result.data[1] = idx_bot - idx_top_2    
         # print(peaks)
         # Select the two highest peaks
         # highest_peaks_ind = np.argsort(x_smooth[peaks])[-2:]
