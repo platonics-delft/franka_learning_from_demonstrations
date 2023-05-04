@@ -13,16 +13,16 @@ class Transform():
         self.equilibrium_pose_sub = rospy.Subscriber('/equilibrium_pose', PoseStamped, self.eq_pose_callback)
 
         # Home pose of panda_EE frame
-        # trans_home_pose = np.array([0.30681743793194804, -0.0005964840257302781, 0.4838100689233732])
-        # quat_home_pose = np.quaternion(0.0001316886225132278, 0.9999887362754397, -0.004173250786325315, -0.0005296947552688665)
-        # self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
-
-        # Home pose of panda_hand frame
-        trans_home_pose = np.array([0.307, 0.000, 0.586])
-        quat_home_pose = np.quaternion(-0.001, 1.000, -0.005, -0.002)
+        trans_home_pose = np.array([0.3067, 0.0007, 0.4840])
+        quat_home_pose = np.quaternion(-0.0013368381495548441, 0.9999906149190223, -0.003484754266474329, 0.00016145904239296165)
         self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
 
-        self.home_EE_height = 0.4841658147707774
+        # Home pose of panda_hand frame
+        # trans_home_pose = np.array([0.307, 0.000, 0.586])
+        # quat_home_pose = np.quaternion(-0.001, 1.000, -0.005, -0.002)
+        # self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
+
+        self.home_EE_height = 0.4840
 
         self._tf_listener = tf.TransformListener()
 
@@ -49,7 +49,7 @@ class Transform():
         return transformed_traj, transformed_ori
 
     def compute_final_transform(self):
-        transform_new = self.get_transform('panda_link0', 'panda_hand')
+        transform_new = pose_st_2_transformation(self.eq_pose)
         home_pose_matrix = pose_st_2_transformation(self.home_pose)
         self.final_transform =  transform_new @ np.linalg.inv(home_pose_matrix)
         print("final transform", self.final_transform)
