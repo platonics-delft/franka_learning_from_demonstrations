@@ -1,5 +1,7 @@
 #%%
 #!/usr/bin/env python
+import os
+import sys
 import cv2
 import rospy
 import math
@@ -8,15 +10,19 @@ import time
 import rospkg
 from geometry_msgs.msg import PoseStamped, Pose, WrenchStamped
 from sensor_msgs.msg import Image
+from pynput.keyboard import Listener, KeyCode
+from cv_bridge import CvBridge, CvBridgeError
 from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
 from cv_bridge import CvBridgeError, CvBridge
 from lfd import LfD
 import tf
 import quaternion
+import pdb
 from camera_feedback import CameraFeedback, image_process
+from slider_feedback import SliderFeedback
 from std_msgs.msg import Float32MultiArray,Float32
 
-class LfD_image(LfD, CameraFeedback):
+class LfD_image(LfD, CameraFeedback, SliderFeedback):
     def __init__(self):
         rospy.init_node("learning_node")
         super().__init__()
@@ -24,6 +30,7 @@ class LfD_image(LfD, CameraFeedback):
 
         # self._tf_listener = tf.TransformListener()
         self.spiraling = False
+        self.exit_execution = False
         
         self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
 
@@ -45,16 +52,19 @@ class LfD_image(LfD, CameraFeedback):
         self.end = False
         self.grip_open_width = 0.02
 
+        # self.row_crop_pct_top = 0.3
+        # self.row_crop_pct_bot = 0.9
+        # self.col_crop_pct_left = 0.6
+        # self.col_crop_pct_right = 0.8
         self.row_bias_pct = (self.row_crop_pct_top + self.row_crop_pct_bot)/2 - 0.5
         self.col_bias_pct = (self.col_crop_pct_left + self.col_crop_pct_right)/2 - 0.5
+        # self.ds_factor = 4
+
+        # self.x_dist_threshold = 5
+        # self.y_dist_threshold = 5
 
         self.insertion_force_threshold = 6
         self.retry_counter = 0
-
-        self.slider_sub=rospy.Subscriber("/slider_node/result", Float32MultiArray, self.slider_callback)
-        self.screen_yellow_distance=None
-        self.screen_green_distance=None
-        self.screen_orientation=None
 
         ros_pack = rospkg.RosPack()
         self._package_path = ros_pack.get_path('trajectory_manager')
@@ -70,11 +80,6 @@ class LfD_image(LfD, CameraFeedback):
 
         except CvBridgeError as e:
             print(e)
-
-    def slider_callback(self, msg):
-        self.screen_yellow_distance = msg.data[0]
-        self.screen_green_distance = msg.data[1]
-        self.screen_orientation = msg.data[2]
 
     def traj_rec(self, trigger=0.005, rec_position=True, rec_orientation=True):
         # trigger for starting the recording
@@ -127,7 +132,7 @@ class LfD_image(LfD, CameraFeedback):
         goal = PoseStamped()
         goal.header.seq = 1
         goal.header.stamp = rospy.Time.now()
-        goal.header.frame_id = "panda_link0"
+        goal.header.frame_id = "map"
 
         goal.pose.position.x = self.curr_pos[0]
         goal.pose.position.y = self.curr_pos[1]
@@ -143,19 +148,21 @@ class LfD_image(LfD, CameraFeedback):
 
     def execute(self, retry_insertion_flag=0):
         self.spiralling_occured = False
+        # print("spiral flag", bool(int(spiral_flag)))
         print('entered execute')
         start = PoseStamped()
 
         quat_start = list_2_quaternion(self.recorded_ori[:, 0])
         start = array_quat_2_pose(self.recorded_traj[:, 0], quat_start)
         
-        # ns_msg = [-0.0, -0.78775220299602, -0, -2.363247138397349, -0.0, 1.5758730952857454, 0.7762000998565743]
+        ns_msg = [-0.0, -0.78775220299602, -0, -2.363247138397349, -0.0, 1.5758730952857454, 0.7762000998565743]
         # self.set_configuration(ns_msg)
         
         # self.set_stiffness(0, 0, 0, 0, 0, 0, 10)
         # rospy.sleep(2)
-        self.set_stiffness(2000, 2000, 2000, 30, 30, 30, 0)
+        # self.set_stiffness(1000, 1000, 1000, 20, 20, 20, 20)    
         self.go_to_pose(start)
+        self.set_stiffness(3000, 3000, 3000, 40, 40, 40, 0)
 
         self.time_index=0
         z_sum = 0
@@ -170,12 +177,16 @@ class LfD_image(LfD, CameraFeedback):
             self.move_gripper(self.recorded_gripper[0][self.time_index])
             time.sleep(0.1)
 
-        while self.time_index <( self.recorded_traj.shape[1]):
+        # self.camera_correction=np.array([0.,0.,0.])
+
+        while self.time_index <( self.recorded_traj.shape[1]) and not self.exit_execution:
             quat_goal = list_2_quaternion(self.recorded_ori[:, self.time_index])
-            goal = array_quat_2_pose(self.recorded_traj[:, self.time_index], quat_goal)
+            goal = array_quat_2_pose(self.recorded_traj[:, self.time_index] + self.camera_correction, quat_goal)
             goal.header.seq = 1
             goal.header.stamp = rospy.Time.now()
             goal.header.frame_id = 'panda_link0'
+            ori_threshold = 0.3
+            pos_threshold = 0.1
             
             self.correct()
 
@@ -192,6 +203,7 @@ class LfD_image(LfD, CameraFeedback):
             self.goal_pub.publish(goal)
 
             if self.recorded_img_feedback_flag[0, self.time_index] and not self.time_index % 2:
+                # self.template_matching()
                 self.sift_matching()
             
             if self.recorded_spiral_flag[0, self.time_index]:
@@ -210,6 +222,7 @@ class LfD_image(LfD, CameraFeedback):
 
             force_xy_plane = np.sqrt(self.force.x ** 2 + self.force.y ** 2)
             if retry_insertion_flag and force_xy_plane > self.insertion_force_threshold:
+                print("Camera correction", self.camera_correction)
                 if self.retry_counter >= 3:
                     self.move_gripper(self.grip_open_width)
                     break
@@ -217,7 +230,6 @@ class LfD_image(LfD, CameraFeedback):
                 self.time_index = 0
                 self.retry_counter = self.retry_counter + 1
             self.r.sleep()
-
             # Stop playback if at end of trajectory (some indices might be deleted by feedback)
             if self.time_index == self.recorded_traj.shape[1]-1:
                 break

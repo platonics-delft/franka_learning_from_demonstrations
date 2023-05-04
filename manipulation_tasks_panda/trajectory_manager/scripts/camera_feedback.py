@@ -25,7 +25,8 @@ def image_process(image, ds_factor, row_crop_top, row_crop_bottom, col_crop_left
 
 class CameraFeedback():
     def __init__(self) -> None:
-        super().__init__()
+        super(CameraFeedback, self).__init__()
+        self.camera_correction=np.array([0.,0.,0.])
         self.row_crop_pct_top = 0.3
         self.row_crop_pct_bot = 0.9
         self.col_crop_pct_left = 0.4
@@ -144,7 +145,7 @@ class CameraFeedback():
             y_distance = transform_pixels[1, 2]
 
             transform_correction = np.identity(4)
-            correction_increment = 0.0005
+            correction_increment = 0.001#0.0005
             if abs(x_distance) > self.x_dist_threshold:
                 transform_correction[0, 3] = np.sign(x_distance) * correction_increment
                 print("correcting x")
@@ -189,7 +190,8 @@ class CameraFeedback():
 
         if self.filename != 'probe_place':
             transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
-        self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
+        # self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
+        self.camera_correction = self.camera_correction + transform[:3, 3]
         self.publish_correction_marker(transform)
 
 
