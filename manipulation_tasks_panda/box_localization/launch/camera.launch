@@ -18,6 +18,6 @@
   </include>
 
 <!-- Transform from panda_hand to camera_color_optical_frame -->
-  <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args="0.05570905423739419 -0.03271826477863452 0.03830910529627884 0.008182486458964237 -0.01013596394934535 0.7006937682171291 0.7133432219709147 panda_hand camera_color_optical_frame 100"/>
+  <!-- <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args="0.05570905423739419 -0.03271826477863452 0.03830910529627884 0.008182486458964237 -0.01013596394934535 0.7006937682171291 0.7133432219709147 panda_hand camera_color_optical_frame 100"/> -->
 
 </launch>
