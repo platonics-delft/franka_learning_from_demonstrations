@@ -14,6 +14,7 @@ class Feedback():
         self.spiral_flag = 0
         self.img_feedback_correction = 0
         self.gripper_feedback_correction = 0
+        self.spiral_feedback_correction=0
 
     def _on_press(self, key):
         rospy.loginfo(f"Event happened, user pressed {key}")
@@ -61,11 +62,13 @@ class Feedback():
         if key == KeyCode.from_char('z'):
             print("spiral enabled")
             self.spiral_flag = 1
+            self.spiral_feedback_correction=1
         if key == KeyCode.from_char('x'):
             print("spiral disabled")
+            self.spiral_feedback_correction=1
+            self.spiral_flag = 0
 
         if key == KeyCode.from_char('m'):    
-            self.spiral_flag = 0
             quat_goal = list_2_quaternion(self.curr_ori)
             goal = array_quat_2_pose(self.curr_pos, quat_goal)
             self.goal_pub.publish(goal)
@@ -96,6 +99,9 @@ class Feedback():
         if self.img_feedback_correction:
             self.recorded_img_feedback_flag[0, self.time_index:] = self.img_feedback_flag
 
+        if self.spiral_feedback_correction:
+            self.recorded_spiral_flag[0, self.time_index:] = self.spiral_flag
+        
         if self.gripper_feedback_correction:
             self.recorded_gripper[0, self.time_index:] = self.grip_value
             # print(self.recorded_gripper)
@@ -109,9 +115,12 @@ class Feedback():
             self.recorded_ori = np.delete(self.recorded_ori, self.time_index+1, 1)
             self.recorded_gripper = np.delete(self.recorded_gripper, self.time_index+1, 1)
             self.recorded_img = np.delete(self.recorded_img, self.time_index+1, 0)
+            self.recorded_img_feedback_flag = np.delete(self.recorded_img_feedback_flag, self.time_index+1, 1)
+            self.recorded_spiral_flag = np.delete(self.recorded_spiral_flag, self.time_index+1, 1)
                        
         self.feedback = np.zeros(4)
         self.img_feedback_correction = 0
         self.gripper_feedback_correction = 0
+        self.spiral_feedback_correction = 0 
 
     
