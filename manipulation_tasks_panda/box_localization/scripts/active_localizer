@@ -73,7 +73,7 @@ class ActiveLocalizerNode():
             pos_error = np.linalg.norm(xy_yaw[:2])
             yaw_error = abs(xy_yaw[2])
             print(f"position error {pos_error}, yaw error {yaw_error}")
-            if (pos_error < 0.003 and yaw_error < 0.4 *(np.pi/180)) or self.timeout_counter > 10:
+            if (pos_error < 0.001 and yaw_error < 0.2 *(np.pi/180)) or self.timeout_counter > 15:
                 final_resp.message = f"Finished localization, final error: {pos_error + yaw_error}"
                 final_resp.success = True
                 print(final_resp.message)
