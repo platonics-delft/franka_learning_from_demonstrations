@@ -40,6 +40,10 @@ if __name__ == '__main__':
         
         lfd.load("slider_yellow")
         lfd.execute()
+
+        rospy.wait_for_service('slider_detection')
+        slider_detection = rospy.ServiceProxy('slider_detection', Trigger)
+        resp = slider_detection()
         lfd.slider_exit_condition = 1
         lfd.screen_green_distance=1000
         rospy.sleep(0.2)
