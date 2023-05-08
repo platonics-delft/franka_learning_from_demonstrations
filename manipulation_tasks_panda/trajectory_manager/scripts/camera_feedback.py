@@ -188,9 +188,9 @@ class CameraFeedback():
         transform_base_2_cam = self.get_transform('panda_link0', 'camera_color_optical_frame')
         transform = transform_base_2_cam @ transform_correction @ np.linalg.inv(transform_base_2_cam)
 
-        if self.filename != 'probe_place':
-            transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
-        # self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
+        # if self.filename != 'probe_place':
+        #     transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
+        # # self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
         self.camera_correction = self.camera_correction + transform[:3, 3]
         self.publish_correction_marker(transform)
 
