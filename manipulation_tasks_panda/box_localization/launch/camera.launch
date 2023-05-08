@@ -14,6 +14,11 @@
     <arg name="color_width" value="1280" />
     <arg name="color_height" value="720" />
     <arg name="color_fps" value="30" />
+    <arg name="initial_reset" value="true"/>
+    <arg name="enable_depth" value="false"/>
+    <!-- <arg name="depth_width" value="-1" />
+    <arg name="depth_height" value="-1" />
+    <arg name="depth_fps" value="30" /> -->
     <!-- <arg name="enable_infra1" value="false" /> -->
   </include>
 

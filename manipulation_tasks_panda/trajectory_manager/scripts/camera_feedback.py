@@ -27,10 +27,10 @@ class CameraFeedback():
     def __init__(self) -> None:
         super(CameraFeedback, self).__init__()
         self.camera_correction=np.array([0.,0.,0.])
-        self.row_crop_pct_top = 0.3
-        self.row_crop_pct_bot = 0.9
-        self.col_crop_pct_left = 0.4
-        self.col_crop_pct_right = 0.8
+        self.row_crop_pct_top = 0.
+        self.row_crop_pct_bot = 1.0
+        self.col_crop_pct_left = 0.0
+        self.col_crop_pct_right = 1.0
 
         self.ds_factor = 4
 
@@ -132,7 +132,7 @@ class CameraFeedback():
 
         transform_correction = np.eye(4)
         transform_pixels = np.eye(2)
-        if len(good) > 4:
+        if len(good) > 6:
             self._src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
             self._dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
@@ -145,7 +145,7 @@ class CameraFeedback():
             y_distance = transform_pixels[1, 2]
 
             transform_correction = np.identity(4)
-            correction_increment = 0.001#0.0005
+            correction_increment = 0.0005
             if abs(x_distance) > self.x_dist_threshold:
                 transform_correction[0, 3] = np.sign(x_distance) * correction_increment
                 print("correcting x")

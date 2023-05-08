@@ -3,7 +3,6 @@
 Playback of trajectories and storing them into a databaseself.
 """
 from lfd_image import LfD_image
-from lfd_slider import LfD_slider
 from std_srvs.srv import Trigger
 import sys
 import os
@@ -17,27 +16,27 @@ if __name__ == '__main__':
         sys.exit(1)
 
     lfd = LfD_image()
-    # lfd_slider = LfD_slider()
 
     if int(localization_flag):
         rospy.wait_for_service('active_localizer')
         active_localizer = rospy.ServiceProxy('active_localizer', Trigger)
         resp = active_localizer()
         lfd.compute_final_transform() 
-        # lfd_slider.compute_final_transform()
 
     try:
         
 
         lfd.load("calibrate")
         lfd.execute()
-        # correction_offset = lfd.camera_correction
-        # print("correction offset: ", correction_offset)
-        # lfd.final_transform[:3, -1] = lfd.final_transform[:3, -1] + correction_offset
+        correction_offset = lfd.camera_correction
+        print("correction offset: ", correction_offset)
+        lfd.final_transform[:3, -1] = lfd.final_transform[:3, -1] + correction_offset
 
+        lfd.camera_correction = np.array([0,0,0])
         lfd.load("blue")
         lfd.execute()
         
+        lfd.camera_correction = np.array([0,0,0])
         lfd.load("slider_yellow")
         lfd.execute()
 
@@ -52,9 +51,13 @@ if __name__ == '__main__':
                 lfd.load("slider_green_forward")
             else:
                 lfd.load("slider_green_backwards")
-        lfd.execute()
+            lfd.execute()
+        else:
+            lfd.load('slider_full')
+            lfd.execute()
         lfd.slider_exit_condition = 0
-
+        
+        lfd.camera_correction = np.array([0,0,0])
         lfd.load("peg_pick_black")
         lfd.execute()
 
@@ -64,6 +67,7 @@ if __name__ == '__main__':
         lfd.load("peg_place")
         lfd.execute()
 
+        lfd.camera_correction = np.array([0,0,0])
         lfd.load("probe_pick")
         lfd.execute()
 
