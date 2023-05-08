@@ -204,7 +204,7 @@ class LfD_image(LfD, CameraFeedback, SliderFeedback):
                 time.sleep(0.1)
             self.goal_pub.publish(goal)
 
-            if self.recorded_img_feedback_flag[0, self.time_index] and not self.time_index % 2:
+            if self.recorded_img_feedback_flag[0, self.time_index]: #and not self.time_index % 2:
                 # self.template_matching()
                 self.sift_matching()
             
