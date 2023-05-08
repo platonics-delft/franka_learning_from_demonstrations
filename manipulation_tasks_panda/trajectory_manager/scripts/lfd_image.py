@@ -115,6 +115,8 @@ class LfD_image(LfD, CameraFeedback, SliderFeedback):
 
         print("Recording started. Press e to stop.")
         while not self.end:
+            while(self.pause):
+                self.r.sleep()               
             self.recorded_traj = np.c_[self.recorded_traj, self.curr_pos]
             self.recorded_ori  = np.c_[self.recorded_ori, self.curr_ori]
             self.recorded_gripper = np.c_[self.recorded_gripper, self.grip_value]

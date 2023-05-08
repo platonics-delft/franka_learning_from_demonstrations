@@ -1,6 +1,6 @@
 import rospy
 import numpy as np
-from pynput.keyboard import Listener, KeyCode
+from pynput.keyboard import Listener, KeyCode, Key
 from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
 class Feedback():
     def __init__(self):
@@ -15,7 +15,7 @@ class Feedback():
         self.img_feedback_correction = 0
         self.gripper_feedback_correction = 0
         self.spiral_feedback_correction=0
-
+        self.pause=False
     def _on_press(self, key):
         rospy.loginfo(f"Event happened, user pressed {key}")
         # This function runs on the background and checks if a keyboard key was pressed
@@ -78,6 +78,12 @@ class Feedback():
         if key == KeyCode.from_char('n'):    
             self.set_stiffness(0, 0, 0, 0, 0, 0, 0)
             print("zero rotatioal stiffness")
+        if key == Key.space:
+            self.pause=not(self.pause)
+            if self.pause==True:
+                print("Recording paused")    
+            else:
+                print("Recording started again")  
         key=0
 
     def square_exp(self, ind_curr, ind_j):
