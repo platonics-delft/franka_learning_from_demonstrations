@@ -3,6 +3,7 @@
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Float32, Float32MultiArray
+from std_srvs.srv import Trigger, TriggerResponse
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
@@ -20,6 +21,8 @@ class SliderNode:
         self.result = Float32MultiArray(data=[0, 1e4, 0.0])
         self.detection_treshold=100
         self.rate = rospy.Rate(20)
+        self.running = False
+        self.consecutive_detections = 0
 
         # Subscribe to original image topic
         rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback)
@@ -40,7 +43,21 @@ class SliderNode:
         # Create publisher for delta direction that the slider needs to go
         self.result_pub = rospy.Publisher("slider_node/result", Float32MultiArray, queue_size=10)
 
+        # Create service to trigger the detection
+        self.service = rospy.Service('slider_detection', Trigger, self.trigger_detection)
+
+    def trigger_detection(self, req):
+        print('detecting')
+        self.consecutive_detections = 0
+        self.running = True
+        resp = TriggerResponse()
+        resp.message = "Succesfully triggered detection of green triangle"
+        resp.success = True
+        return resp
+
     def image_callback(self, msg):
+        if not self.running: return
+
         # Convert ROS Image message to OpenCV image
         bridge = CvBridge()
         img = bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
@@ -124,9 +141,8 @@ class SliderNode:
         window_size = 5
         mean_green_minus_red_smooth = np.convolve(mean_green_minus_red, np.ones(window_size)/window_size, mode='valid')
 
-        if np.max(mean_green_minus_red_smooth)>self.detection_treshold:
-            triangle_position=np.argmax(mean_green_minus_red_smooth)
-
+        triangle_position=np.argmax(mean_green_minus_red_smooth)
+        if (np.max(mean_green_minus_red_smooth)>self.detection_treshold) and mean_green_minus_red_smooth[triangle_position] > 80:
             cropped_img[: h // 4,  triangle_position] = [0, 255, 0]
             self.result.data[1] = idx_bot - triangle_position
 
@@ -135,10 +151,15 @@ class SliderNode:
             cropped_image_msg = bridge.cv2_to_imgmsg(cropped_img, encoding="bgr8")
             self.cropped_image_pub.publish(cropped_image_msg)
 
+            self.consecutive_detections += 1
+        else:
+            self.consecutive_detections = 0
+
     def run(self):
         while not rospy.is_shutdown():
-            self.status_pub.publish(self.status)
-            self.result_pub.publish(self.result)
+            if self.running and (self.consecutive_detections > 3):
+                self.status_pub.publish(self.status)
+                self.result_pub.publish(self.result)
 
             self.rate.sleep()
 
