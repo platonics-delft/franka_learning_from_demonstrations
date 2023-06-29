@@ -1,0 +1,6 @@
+crop:
+- 515
+- 1061
+- 46
+- 436
+template_path: /home/albert/Documents/robothon_ws/src/robothon23_manipulation/manipulation_tasks_panda/box_localization/cfg/test_4/full_image.png
