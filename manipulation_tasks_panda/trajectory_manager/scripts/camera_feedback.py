@@ -37,7 +37,7 @@ class CameraFeedback():
         self.x_dist_threshold = 2      # Thresholds to trigger feedback corrections
         self.y_dist_threshold = 2
 
-        self.cx_cy_array = np.array([639.329345703125, 376.771240234375])    # Principal point offsets of your camera
+        self.cx_cy_array = np.array([647.2559814453125, 371.63726806640625])    # Principal point offsets of your camera
 
         self.marker_pub = rospy.Publisher("/visualization_marker", Marker, queue_size = 2)
 
@@ -145,7 +145,7 @@ class CameraFeedback():
             y_distance = transform_pixels[1, 2]
 
             transform_correction = np.identity(4)
-            correction_increment = 0.0005
+            correction_increment = 0.001
             if abs(x_distance) > self.x_dist_threshold:
                 transform_correction[0, 3] = np.sign(x_distance) * correction_increment
                 print("correcting x")
@@ -189,7 +189,7 @@ class CameraFeedback():
         transform = transform_base_2_cam @ transform_correction @ np.linalg.inv(transform_base_2_cam)
 
         # if self.filename != 'probe_place':
-        #     transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
+        transform[2,3] = 0   # ignore z translation (in final transform/pose in base frame)
         # # self.recorded_traj = self.recorded_traj + transform[:3, 3].reshape((3,1))
         self.camera_correction = self.camera_correction + transform[:3, 3]
         self.publish_correction_marker(transform)
