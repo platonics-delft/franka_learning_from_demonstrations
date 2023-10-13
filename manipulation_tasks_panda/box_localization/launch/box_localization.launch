@@ -3,4 +3,5 @@
 	<rosparam command="load" file="$(find box_localization)/cfg/template_live_wed/params.yaml" />
 	<node name="localizer_node" pkg="box_localization" type="localizer_service"/>
 	<node name="active_localizer" pkg="box_localization" type="active_localizer" output="screen"/>
+	<include file="$(find box_localization)/launch/camera.launch" />
 </launch>
