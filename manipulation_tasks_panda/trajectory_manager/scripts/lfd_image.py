@@ -14,7 +14,7 @@ from lfd import LfD
 import tf
 from camera_feedback import CameraFeedback, image_process
 from std_msgs.msg import Float32
-
+import rospkg
 from panda_ros.pose_transform_functions import position_2_array, array_quat_2_pose, list_2_quaternion
 class LfD_image(LfD, CameraFeedback):
     def __init__(self):
@@ -57,9 +57,6 @@ class LfD_image(LfD, CameraFeedback):
 
         self.insertion_force_threshold = 6
         self.retry_counter = 0
-
-        # ros_pack = rospkg.RosPack()
-        # self._package_path = ros_pack.get_path('trajectory_manager')
 
         rospy.sleep(1)
 
@@ -247,6 +244,8 @@ class LfD_image(LfD, CameraFeedback):
         self.resized_img_gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
 
     def save(self, file='last'):
+        ros_pack = rospkg.RosPack()
+        self._package_path = ros_pack.get_path('trajectory_data')
         np.savez(self._package_path + '/trajectories/' + str(file) + '.npz',
                  traj=self.recorded_traj,
                  ori=self.recorded_ori,
@@ -256,6 +255,8 @@ class LfD_image(LfD, CameraFeedback):
                  spiral_flag=self.recorded_spiral_flag)
     
     def load(self, file='last'):
+        ros_pack = rospkg.RosPack()
+        self._package_path = ros_pack.get_path('trajectory_data')
         data = np.load(self._package_path + '/trajectories/' + str(file) + '.npz')
         self.recorded_traj = data['traj']
         self.recorded_ori = data['ori']

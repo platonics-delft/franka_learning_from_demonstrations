@@ -32,8 +32,6 @@ class LfD(Panda, Feedback, Insertion, Transform):
         
         self.pose_icp = None
 
-        ros_pack = rospkg.RosPack()
-        self._package_path = ros_pack.get_path('trajectory_manager')
         rospy.sleep(1)
 
     def traj_rec(self, trigger=0.005, rec_position=True, rec_orientation=True):
@@ -134,12 +132,16 @@ class LfD(Panda, Feedback, Insertion, Transform):
             print(f"recording {self.filename}, spiralling occured")
 
     def save(self, file='last'):
+        ros_pack = rospkg.RosPack()
+        self._package_path = ros_pack.get_path('trajectory_data')
         np.savez(self._package_path + '/trajectories/' + str(file) + '.npz',
                  traj=self.recorded_traj,
                  ori=self.recorded_ori,
                  grip=self.recorded_gripper)
 
     def load(self, file='last'):
+        ros_pack = rospkg.RosPack()
+        self._package_path = ros_pack.get_path('trajectory_data')
         data = np.load(self._package_path + '/trajectories/' + str(file) + '.npz')
         self.recorded_traj = data['traj']
         self.recorded_ori = data['ori']
