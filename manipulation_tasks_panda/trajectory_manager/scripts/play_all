@@ -7,6 +7,7 @@ from std_srvs.srv import Trigger
 import sys
 import os
 import rospy
+import numpy as np
 
 if __name__ == '__main__':
     try:
@@ -33,31 +34,9 @@ if __name__ == '__main__':
         lfd.final_transform[:3, -1] = lfd.final_transform[:3, -1] + correction_offset
 
         lfd.camera_correction = np.array([0,0,0])
-        lfd.load("blue")
-        lfd.execute()
+        # lfd.load("blue")
+        # lfd.execute()
         
-        lfd.camera_correction = np.array([0,0,0])
-        lfd.load("slider_yellow")
-        lfd.execute()
-
-        rospy.wait_for_service('slider_detection')
-        slider_detection = rospy.ServiceProxy('slider_detection', Trigger)
-        resp = slider_detection()
-        lfd.slider_exit_condition = 1
-        lfd.screen_green_distance=1000
-        rospy.sleep(0.2)
-        if abs(lfd.screen_green_distance) < 200 and abs(lfd.screen_green_distance) > 7:
-            if lfd.screen_green_distance > 0:
-                lfd.load("slider_green_forward")
-            else:
-                lfd.load("slider_green_backwards")
-            lfd.execute()
-        else:
-            lfd.load('slider_full')
-            lfd.execute()
-        lfd.slider_exit_condition = 0
-        
-        lfd.camera_correction = np.array([0,0,0])
         lfd.load("peg_pick_black")
         lfd.execute()
 
@@ -73,15 +52,15 @@ if __name__ == '__main__':
 
         lfd.load("probe")
         lfd.execute()
-
+        lfd.camera_correction = np.array([0,0,0])
         lfd.load("probe_place")
         lfd.execute(retry_insertion_flag=1)
 
         lfd.load("wrap")
         lfd.execute()
 
-        lfd.load("red")
-        lfd.execute()
+        # lfd.load("red")
+        # lfd.execute()
     except rospy.ROSInterruptException:
         pass
 

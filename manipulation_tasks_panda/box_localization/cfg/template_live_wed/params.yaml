@@ -4,4 +4,4 @@ crop:
 - 20
 - 445
 template_depth: 526.8724175642088
-template_path: /home/albert/Documents/robothon_ws/src/robothon23_manipulation/manipulation_tasks_panda/box_localization/cfg/template_live_wed/full_image.png
+template_path: /cfg/template_live_wed/full_image.png

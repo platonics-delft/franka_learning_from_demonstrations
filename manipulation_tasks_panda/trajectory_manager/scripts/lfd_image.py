@@ -1,28 +1,22 @@
 #%%
 #!/usr/bin/env python
-import os
-import sys
 import cv2
 import rospy
 import math
 import numpy as np
 import time
-import rospkg
-from geometry_msgs.msg import PoseStamped, Pose, WrenchStamped
+from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Image
-from pynput.keyboard import Listener, KeyCode
 from cv_bridge import CvBridge, CvBridgeError
-from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
+# Get the current script's directory
 from cv_bridge import CvBridgeError, CvBridge
 from lfd import LfD
 import tf
-import quaternion
-import pdb
 from camera_feedback import CameraFeedback, image_process
-from slider_feedback import SliderFeedback
-from std_msgs.msg import Float32MultiArray,Float32
+from std_msgs.msg import Float32
 
-class LfD_image(LfD, CameraFeedback, SliderFeedback):
+from panda_ros.pose_transform_functions import position_2_array, array_quat_2_pose, list_2_quaternion
+class LfD_image(LfD, CameraFeedback):
     def __init__(self):
         rospy.init_node("learning_node")
         super().__init__()
@@ -35,8 +29,6 @@ class LfD_image(LfD, CameraFeedback, SliderFeedback):
         self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
 
         self.cropped_img_pub = rospy.Publisher('/modified_img', Image, queue_size=0)
-        self.annotated_img_pub = rospy.Publisher('/annotated_img', Image, queue_size=0)
-        self.current_template_pub = rospy.Publisher('/current_template', Image, queue_size=0)
         self.corrected_goal_pub = rospy.Publisher('/corrected_goal', PoseStamped, queue_size=0)
         self.pos_2_goal_diff = rospy.Publisher('/pos_2_goal', Float32, queue_size=0)
 
@@ -66,8 +58,8 @@ class LfD_image(LfD, CameraFeedback, SliderFeedback):
         self.insertion_force_threshold = 6
         self.retry_counter = 0
 
-        ros_pack = rospkg.RosPack()
-        self._package_path = ros_pack.get_path('trajectory_manager')
+        # ros_pack = rospkg.RosPack()
+        # self._package_path = ros_pack.get_path('trajectory_manager')
 
         rospy.sleep(1)
 
@@ -205,7 +197,6 @@ class LfD_image(LfD, CameraFeedback, SliderFeedback):
             self.goal_pub.publish(goal)
 
             if self.recorded_img_feedback_flag[0, self.time_index]: #and not self.time_index % 2:
-                # self.template_matching()
                 self.sift_matching()
             
             if self.recorded_spiral_flag[0, self.time_index]:

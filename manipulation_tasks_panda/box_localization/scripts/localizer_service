@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import PoseStamped
 import rospy
-from sensor_msgs.msg import Image, PointCloud2 
-from robothon23vision.localization.localizer_sift import Localizer as LocalizerSift
-from robothon23vision.detectors import *
+from sensor_msgs.msg import Image
+from vision_tools import Localizer
 import numpy as np
 
 from box_localization.srv import ComputeLocalization, ComputeLocalizationResponse
-
+import rospkg
 import tf
 
-from cv_bridge import CvBridge, CvBridgeError
+from cv_bridge import CvBridge
 
 class LocalizationService():
     def __init__(self) -> None:
@@ -18,9 +17,12 @@ class LocalizationService():
         self._rate = rospy.Rate(5)
         cropping = rospy.get_param("crop")
         template_path = rospy.get_param("template_path")
-        self._localizer = LocalizerSift(template_path, cropping)
+        rospack = rospkg.RosPack()
+        box_localization_path=rospack.get_path('box_localization')
+        template_path = box_localization_path + template_path
+        self._localizer = Localizer(template_path, cropping)
         self.bridge = CvBridge()
-        self.image_publisher = rospy.Publisher("/image_detection", Image, queue_size=10)
+        self.image_publisher = rospy.Publisher("/SIFT_localization", Image, queue_size=10)
         self._publisher_counter = 0
         self._service = rospy.Service('compute_localization', ComputeLocalization, self.handle_request)
 

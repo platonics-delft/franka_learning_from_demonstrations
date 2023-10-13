@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-import sys
-sys.path.append('/home/platonics/Documents/robothon/src/franka_ros/robotthon_23_platonics/manipulation_tasks_panda/trajectory_manager/scripts')
-import rospy
+
+from panda_ros.pose_transform_functions import list_2_quaternion, array_quat_2_pose
 from std_srvs.srv import Trigger, TriggerResponse
-from sensor_msgs.msg import Image, PointCloud2 
-from robothon23vision.detectors import *
-from panda import Panda
-from transform import Transform
+from sensor_msgs.msg import Image
+from panda_ros import Panda
+from panda_ros import Transform
 from box_localization.srv import ComputeLocalization
-from manipulation_helpers.pose_transform_functions import list_2_quaternion, array_quat_2_pose, pose_st_2_transformation
 import numpy as np
 
 from tf.transformations import euler_from_quaternion
 from queue import Queue
+import rospy
 
 class ActiveLocalizerNode():
     def __init__(self) -> None:

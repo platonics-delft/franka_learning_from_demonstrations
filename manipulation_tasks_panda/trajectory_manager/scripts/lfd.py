@@ -5,13 +5,13 @@ import math
 import numpy as np
 import time
 import rospkg
-from geometry_msgs.msg import PoseStamped, Pose, WrenchStamped
-from pynput.keyboard import Listener, KeyCode
-from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion
-from panda import Panda
+from geometry_msgs.msg import PoseStamped, Pose
+from pynput.keyboard import Listener
+from panda_ros import Panda
 from feedback import Feedback
 from insertion import Insertion
 from transform import Transform 
+from panda_ros.pose_transform_functions import position_2_array, array_quat_2_pose, list_2_quaternion
 
 class LfD(Panda, Feedback, Insertion, Transform):
     def __init__(self):

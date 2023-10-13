@@ -1,10 +1,8 @@
-from manipulation_helpers.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion, transform_pos_ori
 import numpy as np
 import rospy
 from geometry_msgs.msg import PoseStamped
 import tf
-import copy
-from tf.transformations import euler_from_quaternion
+from panda_ros.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, array_quat_2_pose,transform_pose, transform_pos_ori
 
 class Transform():
     def __init__(self):
@@ -16,11 +14,6 @@ class Transform():
         trans_home_pose = np.array([0.3067, 0.0007, 0.4840])
         quat_home_pose = np.quaternion(-0.0013368381495548441, 0.9999906149190223, -0.003484754266474329, 0.00016145904239296165)
         self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
-
-        # Home pose of panda_hand frame
-        # trans_home_pose = np.array([0.307, 0.000, 0.586])
-        # quat_home_pose = np.quaternion(-0.001, 1.000, -0.005, -0.002)
-        # self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
 
         self.home_EE_height = 0.4840
 
