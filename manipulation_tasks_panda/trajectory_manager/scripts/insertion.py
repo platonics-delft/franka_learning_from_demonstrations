@@ -1,5 +1,3 @@
-import sys
-import os
 from panda_ros.pose_transform_functions import orientation_2_quaternion, position_2_array, array_quat_2_pose
 import numpy as np
 
