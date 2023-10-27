@@ -2,7 +2,7 @@
 from geometry_msgs.msg import PoseStamped
 import rospy
 from sensor_msgs.msg import Image
-from vision_tools import Localizer
+from localizer_sift import Localizer
 import numpy as np
 
 from box_localization.srv import ComputeLocalization, ComputeLocalizationResponse
