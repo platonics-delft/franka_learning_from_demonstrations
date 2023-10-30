@@ -40,20 +40,6 @@ class LocalizationService():
         return tf_matrix
     
     def publish_annoted_image(self):
-        """
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.8
-        font_color = (0, 0, 255)
-        thickness = 1
-        for key, center in points.items():
-
-            cv2.circle(image, center, 10, (0, 0, 255), 2)
-            cv2.circle(image, center, 2, (0, 0, 255), 3)
-            cv2.putText(image, key, (center[0]+15, center[1]), font, font_scale, font_color, thickness)
-
-        #print(type(self._localizer._detectors[1]))
-        #ros_image = self.bridge.cv2_to_imgmsg(self._localizer._detectors[1].filtered_img(), "bgr8")
-        """
         ros_image = self.bridge.cv2_to_imgmsg(self._localizer.annoted_image(), "bgr8")
         self.image_publisher.publish(ros_image)
 
