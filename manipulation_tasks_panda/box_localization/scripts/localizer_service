@@ -16,11 +16,12 @@ class LocalizationService():
         rospy.init_node("localization_server")
         self._rate = rospy.Rate(5)
         cropping = rospy.get_param("crop")
+        depth = rospy.get_param("depth") * 0.001
         template_path = rospy.get_param("template_path")
         rospack = rospkg.RosPack()
         box_localization_path=rospack.get_path('box_localization')
         template_path = box_localization_path + template_path
-        self._localizer = Localizer(template_path, cropping)
+        self._localizer = Localizer(template_path, cropping, depth)
         self.bridge = CvBridge()
         self.image_publisher = rospy.Publisher("/SIFT_localization", Image, queue_size=10)
         self._publisher_counter = 0

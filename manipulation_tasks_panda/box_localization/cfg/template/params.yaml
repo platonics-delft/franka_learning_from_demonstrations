@@ -3,5 +3,5 @@ crop:
 - 1069
 - 20
 - 445
-template_depth: 526.8724175642088
-template_path: /cfg/template_live_wed/full_image.png
+depth: 461
+template_path: /cfg/template/full_image.png

@@ -7,10 +7,10 @@ MIN_MATCH_COUNT = 2
 
 class Localizer(object):
 
-    def __init__(self, template, cropping):
+    def __init__(self, template, cropping, depth):
         assert isinstance(template, str)
         self._full_template = cv2.imread(template, 0)
-        self._box_depth = 0.461 # This must be adjusted online using some other information 
+        self._box_depth = depth
         cropped_h = cropping[2:]
         cropped_w = cropping[:2]
 
