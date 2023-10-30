@@ -2,86 +2,25 @@
 Our solution to the robothon 2023 challenge is made fully open-source to allow the community to build on top and further improve our solution. All components are stored in [Platonics Delft](https://github.com/orgs/platonics-delft). You can find all required software components and links to their installation guides below.
 
 1. [Franka Cartesian Impedence Controller](https://github.com/platonics-delft/franka_control_robothon_challenge)
-2. [robothon23_vision](https://github.com/platonics-delft/robothon23_vision)
-3. [robothon23_gui](https://github.com/platonics-delft/robothon23_gui)
-4. [robothon23_manipulation](https://github.com/platonics-delft/robothon23_manipulation)
+2. [robothon23_gui](https://github.com/platonics-delft/robothon23_gui)
+3. [robothon23_manipulation](https://github.com/platonics-delft/robothon23_manipulation)
+
+### Install realsense camera and calibrate the extrinsic parameters (hand-eye calibration)
+Follow the instructions here:
+https://github.com/franzesegiovanni/franka_easy_handeye
 
 ## Installation
 
-### Franka Cartesian Impedence Controller
-First, we need to install `libfranka` to communicate with the robot. The library is publicly available and can be installed in the `$HOME` directory using the following commands:
-
 ```
-cd $HOME
-sudo apt install build-essential cmake git libpoco-dev libeigen3-dev
-git clone --recursive https://github.com/frankaemika/libfranka
-cd libfranka
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-cmake --build .
-```
-
-In the next step, we install the ROS-wrapper (we assume that you have set up a real-time kernel with ROS) for the communication with the robot:
-
-```
-cd $HOME
-mkdir -p catkin_ws/src
-cd catkin_ws
-source /opt/ros/<ros-distro>/setup.sh
-catkin_init_workspace src
-git clone --recursive https://github.com/frankaemika/franka_ros src/franka_ros
-rosdep install --from-paths src --ignore-src --rosdistro <ros-distro> -y --skip-keys libfranka
-source devel/setup.sh
-```
-
-Finally, we can install the custom controller used by the Platonics in the robothon 2023 using the following:
-
-```
-roscd franka_ros
-git clone git@github.com:platonics-delft/franka_control_robothon_challenge.git
-roscd
-cd ..
-source /opt/ros/<ros-distro>/setup.bash
-catkin_make -DMAKE_BUILD_TYPE=Release -DFranka_DIR:PATH=~/libfranka/build
-```
-
-You can now run the controller using:
-
-```
-roslaunch franka_human_friendly_controllers cartesian_variable_impedance_controller.launch robot_ip:=ROBOT_IP load_gripper:=True
-```
-
-### robothon23_vision
-The vision components are a pure Python package and can be installed using `pip`. This will automatically install the dependencies, i.e. `opencv-python`, `scipy`, `numpy`.
-
-```
-git clone git@github.com:platonics-delft/robothon23_vision.git
-cd robothon23_vision
-pip install .
-```
-
-### robothon23_gui
-The GUI can be installed using:
-
-```
-git clone git@github.com:platonics-delft/robothon23_gui.git
-cd robothon23_gui
-pip install .
-```
-### robothon23_manipulation
-
-Finally, all the ros related packages are located here. For example, the trajectory manager and the active box_localization.
-
-```
-sudo apt install ros-<ros-distro>-realsense-ros
-cd $HOME/catkin_ws
-source devel/setup.bash
+mkdir robot_ws
+cd robot_ws
+mkdir src
 cd src
-git clone git@github.com:platonics-delft/robothon23_manipulation.git
+git clone --depth 1 https://github.com/platonics-delft/robothon23_manipulation.git
+git clone https://github.com/platonics-delft/panda-ros-py.git
 pip install -r robothon23_manipulation/requirements.txt
 cd ..
-catkin_make
+catkin build
 source devel/setup.bash
 ```
 
@@ -92,10 +31,6 @@ source devel/setup.bash
 ```bash
 roslaunch franka_example_controllers move_to_start.launch robot_ip:=ROBOT_IP
 ```
-
-### Record the template of the object in the current robot view 
-
-To record and save the template that is going to be used later to localize the object follow the instructions: [here](https://github.com/platonics-delft/robothon23_gui/blob/main/README.md)
 
 ### Kinesthetic Demonstration 
 
@@ -158,7 +93,7 @@ In this second case, the robot will first localize the object by trying to match
 
 During demonstration or during execution, it is possible to give feedback to the learned skill using the computer keyboard. 
 
-- Press `e` to stop the recording.
+- Press `ESC` to stop the recording.
 
 #### Gripper commands:
 
