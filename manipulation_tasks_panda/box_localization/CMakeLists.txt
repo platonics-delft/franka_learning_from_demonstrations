@@ -21,6 +21,9 @@ add_service_files(
   ComputeLocalization.srv
 )
 
+# Make sure that your Python modules are available for import within your package
+catkin_python_setup()
+
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
@@ -29,8 +32,15 @@ generate_messages(
   sensor_msgs
 )
 
+
+
 catkin_package()
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
+)
+
+# Install the box localization package, including Python modules
+install(DIRECTORY box_localization
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
