@@ -1,6 +1,0 @@
-crop:
-- 556
-- 1017
-- 0
-- 597
-template_path: /home/albert/Documents/robothon_ws/src/robothon23_manipulation/manipulation_tasks_panda/box_localization/cfg/template_byod_last/full_image.png
