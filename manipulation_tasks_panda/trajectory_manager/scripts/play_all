@@ -17,6 +17,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     lfd = LfD_image()
+    lfd.home()
 
     if int(localization_flag):
         rospy.wait_for_service('active_localizer')
@@ -26,18 +27,7 @@ if __name__ == '__main__':
 
     try:
         
-
-        lfd.load("calibrate")
-        lfd.execute()
-        correction_offset = lfd.camera_correction
-        print("correction offset: ", correction_offset)
-        lfd.final_transform[:3, -1] = lfd.final_transform[:3, -1] + correction_offset
-
-        lfd.camera_correction = np.array([0,0,0])
-        # lfd.load("blue")
-        # lfd.execute()
-        
-        lfd.load("peg_pick_black")
+        lfd.load("peg_pick")
         lfd.execute()
 
         lfd.load("peg_door")
@@ -46,21 +36,19 @@ if __name__ == '__main__':
         lfd.load("peg_place")
         lfd.execute()
 
-        lfd.camera_correction = np.array([0,0,0])
-        lfd.load("probe_pick")
-        lfd.execute()
-
-        lfd.load("probe")
-        lfd.execute()
-        lfd.camera_correction = np.array([0,0,0])
-        lfd.load("probe_place")
-        lfd.execute(retry_insertion_flag=1)
-
-        lfd.load("wrap")
-        lfd.execute()
-
-        # lfd.load("red")
+        # lfd.camera_correction = np.array([0,0,0])
+        # lfd.load("probe_pick")
         # lfd.execute()
+
+        # lfd.load("probe")
+        # lfd.execute()
+        # lfd.camera_correction = np.array([0,0,0])
+        # lfd.load("probe_place")
+        # lfd.execute(retry_insertion_flag=1)
+
+        # lfd.load("wrap")
+        # lfd.execute()
+
     except rospy.ROSInterruptException:
         pass
 
