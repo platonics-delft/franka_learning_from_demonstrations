@@ -4,7 +4,11 @@ from panda_ros.pose_transform_functions import list_2_quaternion, array_quat_2_p
 from std_srvs.srv import Trigger, TriggerResponse
 from sensor_msgs.msg import Image
 from panda_ros import Panda
-from panda_ros import Transform
+from panda_ros.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion, transform_pos_ori
+
+import tf
+# from panda_ros import Transform
+# from box_localization.tranform import Transform
 from box_localization.srv import ComputeLocalization
 import numpy as np
 
@@ -20,12 +24,18 @@ class ActiveLocalizerNode():
         self._rate = rospy.Rate(1)
         self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
         self._panda = Panda()
-        self._transformer = Transform()
         rospy.wait_for_service('compute_localization')
         self.compute_box_tf = rospy.ServiceProxy('compute_localization', ComputeLocalization)
         self._go_to = True
         self._window = Queue(maxsize=10)
         self._service = rospy.Service('active_localizer', Trigger, self.handle_request)
+
+        # Home pose of panda_EE frame
+        position = rospy.get_param("position")
+
+        self.home_EE_height = position['z']
+
+        self._tf_listener = tf.TransformListener()
 
     def image_callback(self, img):
         self._img = img
@@ -64,9 +74,10 @@ class ActiveLocalizerNode():
             except Exception as e:
                 rospy.logwarn(e)
                 continue
-            self._transformed_pose = self._transformer.transform(box_tf, home_pose)
+            self._transformed_pose = self.transform(box_tf, home_pose)
             self._panda.set_stiffness(4000, 4000, 4000, 50, 50, 50, 0)
             self._panda.go_to_pose(self._transformed_pose, interp_dist=0.001, interp_dist_polar=0.001)
+            self._panda.offset_compensator(10)
             rospy.loginfo("Finished go to.")
             pos_error = np.linalg.norm(xy_yaw[:2])
             yaw_error = abs(xy_yaw[2])
@@ -77,6 +88,41 @@ class ActiveLocalizerNode():
                 print(final_resp.message)
                 return final_resp
             self.timeout_counter = self.timeout_counter + 1
+
+    def get_transform(self, source_frame, target_frame):
+        while True:
+            try:
+                now = rospy.Time.now()
+                self._tf_listener.waitForTransform(source_frame, target_frame, now, rospy.Duration(4.0))
+                rp_tr, rp_rt = self._tf_listener.lookupTransform(source_frame, target_frame, now)
+                break
+            except Exception as e:
+                rospy.logwarn(e)
+        transform = np.dot(tf.transformations.translation_matrix(rp_tr), tf.transformations.quaternion_matrix(rp_rt))
+        return transform
+    
+    def transform(self, transformation_pose, pose):
+        transform_base_2_cam = self.get_transform('panda_link0', 'camera_color_optical_frame')
+        
+        # if transform box is not in camera frame, remove the base_2_cam transforms
+        transform_box = pose_st_2_transformation(transformation_pose)
+        transform = transform_base_2_cam @ transform_box @ np.linalg.inv(transform_base_2_cam)
+
+        print("transforming", transform)
+        pose = transform_pose(pose, transform)
+        pose_quat = orientation_2_quaternion(pose.pose.orientation)
+
+        # Maintain orientation and only apply 'yaw' (rotation around EE z-axis)
+        pose.pose.orientation.z = 0
+        pose.pose.orientation.w = 0
+        new_magnitude = np.sqrt(pose_quat.x * pose_quat.x + pose_quat.y * pose_quat.y)
+        pose_quat.x = pose_quat.x / new_magnitude
+        pose_quat.y = pose_quat.y / new_magnitude
+        pose.pose.orientation.x = pose_quat.x
+        pose.pose.orientation.y = pose_quat.y
+
+        pose.pose.position.z=self.home_EE_height  # Maintain same height
+        return pose
 
 if __name__ == '__main__':
     active_localizer_node = ActiveLocalizerNode()

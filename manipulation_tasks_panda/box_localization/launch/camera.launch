@@ -23,6 +23,7 @@
     <!-- <arg name="enable_infra1" value="false" /> -->
   </include>
 
-  <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args=" 0.054507488958493146  -0.03626680054700994 0.068181864440678 -0.002958533931264989  -0.00025654646859574193 0.6934957706599771 0.7204545768732485 panda_hand camera_color_optical_frame 100" />
-
+  <!-- <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args=" 0.054507488958493146  -0.03626680054700994 0.068181864440678 -0.002958533931264989  -0.00025654646859574193 0.6934957706599771 0.7204545768732485 panda_hand camera_color_optical_frame 100" /> -->
+<!-- <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args="0.05629987850656839 -0.01132741210280858 0.05785982799575437 -0.00011164048166480198 -0.00530401099687805 0.6959064699859127 0.7181128323846426 panda_hand camera_color_optical_frame 100" /> -->
+<node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args="0.05521033251565009 -0.014640114565172894 0.06483150823609107 0.0067608862046002315 -0.0002704668723755299 0.6261161554095721 0.7797004406825327 panda_hand camera_color_optical_frame 100" />
 </launch>

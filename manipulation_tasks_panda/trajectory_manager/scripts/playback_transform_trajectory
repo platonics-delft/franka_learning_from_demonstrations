@@ -17,6 +17,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     lfd = LfD_image()
+    lfd.home()
 
     if int(localization_flag):
         rospy.wait_for_service('active_localizer')
