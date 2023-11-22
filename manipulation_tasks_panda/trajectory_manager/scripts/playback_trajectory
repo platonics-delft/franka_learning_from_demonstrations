@@ -3,6 +3,7 @@
 Playback of trajectories and storing them into a databaseself.
 """
 from lfd_image import LfD_image
+from std_srvs.srv import Trigger
 import sys
 import os
 import rospy
@@ -10,19 +11,27 @@ import rospy
 if __name__ == '__main__':
     try:
         trajectory_name = sys.argv[1]
+        localization_flag = sys.argv[2]
     except IndexError:
         print("Usage: " + os.path.basename(__file__) + " <trajectory_file_name>")
         sys.exit(1)
 
     lfd = LfD_image()
+    lfd.home()
 
-    lfd.load(trajectory_name)
+    if int(localization_flag):
+        rospy.wait_for_service('active_localizer')
+        active_localizer = rospy.ServiceProxy('active_localizer', Trigger)
+        resp = active_localizer()
+        lfd.compute_final_transform() 
+    
     try:
         retry_insertion_flag=0
+        lfd.load(trajectory_name)
         lfd.execute(retry_insertion_flag=retry_insertion_flag)
     except rospy.ROSInterruptException:
         pass
-    
+
     save = None
 
     while not (save in [0,1]):
@@ -33,3 +42,4 @@ if __name__ == '__main__':
             print("INVALID INPUT")
     if save:
         lfd.save(trajectory_name)
+
