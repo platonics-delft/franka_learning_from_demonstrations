@@ -32,6 +32,7 @@ class Transform():
         self.final_transform[2,1]=0
         self.final_transform[1,2]=0
         self.final_transform[2,2]=1
+        self.final_transform[2,3]=0
         print("final transform", self.final_transform)
         return self.final_transform
     
