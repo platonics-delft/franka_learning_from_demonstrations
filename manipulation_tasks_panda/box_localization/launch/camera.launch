@@ -1,26 +1,6 @@
 <?xml version="1.0" ?>
 <launch>
-   <arg name="depth" default="true"/>
   <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
-    <!-- <arg name="align_depth" value="true" /> -->
-    <!-- <arg name="filters" value="pointcloud" /> -->
-    <!-- <arg name="ordered_pc" value="true" /> -->
-    <arg name="color_width" value="1280" />
-    <arg name="color_height" value="720" />
-    <arg name="color_fps" value="30" />
-    <arg name="initial_reset" value="true"/>
-    <arg name="enable_depth" value="$(arg depth)"/> 
-        <!-- Conditionally set align_depth based on depth argument -->
-    <group if="$(arg depth)">
-      <param name="align_depth" value="true"/>
-    </group>
-    <group unless="$(arg depth)">
-      <param name="align_depth" value="false"/>
-    </group>
-    <!-- <arg name="depth_width" value="-1" />
-    <arg name="depth_height" value="-1" />
-    <arg name="depth_fps" value="30" /> -->
-    <!-- <arg name="enable_infra1" value="false" /> -->
   </include>
 
   <!-- <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args=" 0.054507488958493146  -0.03626680054700994 0.068181864440678 -0.002958533931264989  -0.00025654646859574193 0.6934957706599771 0.7204545768732485 panda_hand camera_color_optical_frame 100" /> -->

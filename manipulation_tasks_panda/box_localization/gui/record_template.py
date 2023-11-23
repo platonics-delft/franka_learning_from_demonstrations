@@ -72,12 +72,10 @@ class Template():
                 cv2.imshow(f"image", self.image)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-            if depth:
-                depth_row=depth[self.params['crop'][2]:self.params['crop'][3], self.params['crop'][0]:self.params['crop'][1]].reshape(-1)
-                print(depth_row)
-                self.params['depth'] = float(np.median(depth_row))
-            else:
-                self.params['depth']=None
+                
+            depth_row=depth[self.params['crop'][2]:self.params['crop'][3], self.params['crop'][0]:self.params['crop'][1]].reshape(-1)
+            self.params['depth'] = float(np.median(depth_row))
+  
             print(self.panda.curr_pos[0])
             self.params['position']={'x': float(self.panda.curr_pos[0]), 'y': float(self.panda.curr_pos[1]), 'z': float(self.panda.curr_pos[2])}
             self.params['orientation']={'w': float(self.panda.curr_ori[0]) ,'x': float(self.panda.curr_ori[1]) , 'y': float(self.panda.curr_ori[2]), 'z': float(self.panda.curr_ori[3])}
