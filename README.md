@@ -11,8 +11,7 @@ https://github.com/platonics-delft/franka_control_robothon_challenge
 ### Install realsense camera and calibrate the extrinsic parameters (hand-eye calibration)
 Follow the instructions here:
 https://github.com/franzesegiovanni/franka_easy_handeye
-Be sure to add a static transfor of the camera frame with respect to the robot hand frame in box_localization/launch/camera.launch, such as:
-``` <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args="position.x position.y position.z orientation.x orientation.y orientation.z orientation.w panda_hand camera_color_optical_frame 100" /> ```
+Be sure to add a static transfor of the camera frame with respect to the robot hand frame in box_localization/config/camera_transforms.yaml.    
 The parameters for position and orientation are coming from the calibration procedure. 
 
 
