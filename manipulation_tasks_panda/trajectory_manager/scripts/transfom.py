@@ -47,26 +47,3 @@ class Transform():
                 rospy.logwarn(e)
         transform = np.dot(tf.transformations.translation_matrix(rp_tr), tf.transformations.quaternion_matrix(rp_rt))
         return transform
-    
-    # def transform(self, transformation_pose, pose):
-    #     transform_base_2_cam = self.get_transform('panda_link0', 'camera_color_optical_frame')
-        
-    #     # if transform box is not in camera frame, remove the base_2_cam transforms
-    #     transform_box = pose_st_2_transformation(transformation_pose)
-    #     transform = transform_base_2_cam @ transform_box @ np.linalg.inv(transform_base_2_cam)
-
-    #     print("transforming", transform)
-    #     pose = transform_pose(pose, transform)
-    #     pose_quat = orientation_2_quaternion(pose.pose.orientation)
-
-    #     # Maintain orientation and only apply 'yaw' (rotation around EE z-axis)
-    #     pose.pose.orientation.z = 0
-    #     pose.pose.orientation.w = 0
-    #     new_magnitude = np.sqrt(pose_quat.x * pose_quat.x + pose_quat.y * pose_quat.y)
-    #     pose_quat.x = pose_quat.x / new_magnitude
-    #     pose_quat.y = pose_quat.y / new_magnitude
-    #     pose.pose.orientation.x = pose_quat.x
-    #     pose.pose.orientation.y = pose_quat.y
-
-    #     pose.pose.position.z=self.home_EE_height  # Maintain same height
-    #     return pose
