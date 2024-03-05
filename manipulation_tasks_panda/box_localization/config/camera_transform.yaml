@@ -1,0 +1,10 @@
+# transformation from  "panda_hand" to "camera_color_optical_frame"
+position:
+  x: 0.05521033251565009 
+  y: -0.014640114565172894
+  z: 0.06483150823609107
+orientation:
+  x: 0.0067608862046002315
+  y: -0.0002704668723755299
+  z: 0.6261161554095721
+  w: 0.7797004406825327

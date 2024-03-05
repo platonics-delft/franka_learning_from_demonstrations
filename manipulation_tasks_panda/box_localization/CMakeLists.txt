@@ -33,7 +33,6 @@ generate_messages(
 )
 
 
-
 catkin_package()
 
 include_directories(
@@ -43,4 +42,9 @@ include_directories(
 # Install the box localization package, including Python modules
 install(DIRECTORY box_localization
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(PROGRAMS
+  scripts/static_transform_camera.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
