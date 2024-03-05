@@ -45,13 +45,13 @@ roslaunch franka_robothon_controllers cartesian_variable_impedance_controller.la
 
 Start the camera on the computer connected to the camera
 ``` bash
-    roslaunch box_localization camera.launch depth:=false
+    roslaunch box_localization camera.launch
 ```
 
-Send the robot to the home position. This pose is hard coded in the class python of panda-ros-py and can be changed there. 
+Send the robot to the home position. The robot will move in front of the robot and we can specify the z axis, i.e. the robot vertical height as one of the input to the script. For example, to send the robot to the home position at 0.25 m from the table, run: 
 ``` bash
     roscd trajectory_manager/scripts/
-    python3 home.py
+    python3 home.py 0.25
 ```
 
 Record the current template for the localization 
@@ -64,7 +64,7 @@ Record the current template for the localization
 Be sure that the camera is running using: 
 
 ```bash
-roslaunch box_localization camera.launch depth:=false
+roslaunch box_localization camera.launch
 ```
 
 You can now record a demonstration with:
