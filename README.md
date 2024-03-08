@@ -55,8 +55,8 @@ Send the robot to the home position. The robot will move in front of the robot a
 
 Record the current template for the localization 
 ``` bash
-    roscd trajectory_manager/scripts/
-    python3 record_template.py
+    roscd box_localization/scripts/
+    python3 record_template.py "name_of_template"
 ```
 ### Kinesthetic Demonstration 
 
@@ -92,7 +92,7 @@ roscd trajectory_manager/scripts
 If you instead do want to use the active localizer, you can then run
 
 ```bash
-roslaunch box_localization box_localization.launch 
+roslaunch box_localization box_localization.launch "name_of_template"
 ```
 Execute a single skill with the active localizer on: 
 
