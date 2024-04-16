@@ -92,7 +92,7 @@ roscd trajectory_manager/scripts
 If you instead do want to use the active localizer, you can then run
 
 ```bash
-roslaunch box_localization box_localization.launch "name_of_template"
+roslaunch box_localization box_localization.launch template:="name_of_template"
 ```
 Execute a single skill with the active localizer on: 
 
