@@ -1,0 +1,7 @@
+<launch>
+    <rosparam command="load" file="$(find trajectory_manager)/config/settings.yaml" />
+    <arg name="name_skill" default="skill" />
+    <node name="recording_node" pkg="trajectory_manager" type="record_skill.py" output="screen">
+        <param name="name_skill" value="$(arg name_skill)" /> 
+    </node>
+</launch>

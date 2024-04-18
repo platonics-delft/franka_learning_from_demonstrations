@@ -1,1 +1,1 @@
-from .record_template import Template
+from .gui_template import Template

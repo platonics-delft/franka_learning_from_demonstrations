@@ -47,8 +47,7 @@ class LocalizationService():
 
     def handle_request(self, req):
         tf_matrix = self.compute_localization_in_pixels(req.img)
-        # tf_matrix[0:3, 0:3] = np.identity(3)
-
+        
         position = tf_matrix[0:3, 3]
         quaternion = tf.transformations.quaternion_from_matrix(tf_matrix[0:4, 0:4])
         quaternion = quaternion/np.linalg.norm(quaternion)

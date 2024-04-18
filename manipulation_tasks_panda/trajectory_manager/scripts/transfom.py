@@ -8,6 +8,7 @@ class Transform():
     def __init__(self):
         super(Transform, self).__init__()
         self._tf_listener = tf.TransformListener()
+        self.final_transform = None
     def transform_traj_ori(self, traj, ori, transform):
         transformed_traj = np.empty_like(traj)
         transformed_ori = np.empty_like(ori)

@@ -5,6 +5,8 @@ from geometry_msgs.msg import Point
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
 import rospy
+from geometry_msgs.msg import PoseStamped
+from cv_bridge import CvBridgeError, CvBridge
 
 def image_process(image, ds_factor, row_crop_top, row_crop_bottom, col_crop_left, col_crop_right):
     h, w = image.shape[:2]
@@ -45,12 +47,30 @@ class CameraFeedback():
         self.marker_pub = rospy.Publisher("/visualization_marker", Marker, queue_size = 2)
 
         self.current_template_pub = rospy.Publisher('/SIFT_corrections', Image, queue_size=0)
+
+        self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
+
+        self.cropped_img_pub = rospy.Publisher('/modified_img', Image, queue_size=0)
+
+        self.bridge = CvBridge()
+        
+    def image_callback(self, msg):
+            # Convert the ROS message to a OpenCV image
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+
+            self.curr_image = cv_image
+
+        except CvBridgeError as e:
+            print(e)
     def camera_info_callback(self, camera_info):
         self.cx_cy_array = np.array([camera_info.K[2], camera_info.K[5]])    # Principal point offsets of your camera
 
     def sift_matching(self):
 
-        self.image_process(self.ds_factor,  0, 1, 0, 1)
+        # self.resized_img_gray=image_process(self.ds_factor,  0, 1, 0, 1)
+        self.resized_img_gray=image_process(self.curr_image, self.ds_factor,  self.row_crop_pct_top , self.row_crop_pct_bot,
+                                        self.col_crop_pct_left, self.col_crop_pct_right)
         # idx=np.argmin(np.linalg.norm(self.recorded_traj-(self.curr_pos).reshape(3,1),axis=0))
         idx = self.time_index - 1
 
@@ -103,14 +123,14 @@ class CameraFeedback():
             
             if abs(x_distance) > self.x_dist_threshold:
                 transform_correction[0, 3] = np.sign(x_distance) * self.correction_increment
-                print("correcting x")
+                # print("correcting x")
             if abs(y_distance) > self.y_dist_threshold:
                 transform_correction[1, 3] = np.sign(y_distance) * self.correction_increment
-                print("correcting y")
+                # print("correcting y")
 
             if abs(scaling_factor) > 0.05:
                 transform_correction[2,3] = np.sign(scaling_factor) * self.correction_increment
-                print("correcting z")
+                # print("correcting z")
 
         for k in kp1:
             k.pt = (k.pt[0] + cx_cy_array_ds[0], k.pt[1] + cx_cy_array_ds[1])

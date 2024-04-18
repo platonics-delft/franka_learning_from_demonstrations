@@ -1,0 +1,6 @@
+<launch>
+    <arg name="height" default="0.25" />
+    <node name="homing_node" pkg="trajectory_manager" type="home.py" output="screen">
+        <param name="height" value="$(arg height)" type="double"/> 
+    </node>
+</launch>

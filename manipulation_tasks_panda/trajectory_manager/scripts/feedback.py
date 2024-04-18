@@ -1,6 +1,7 @@
 import rospy
 import numpy as np
 from pynput.keyboard import KeyCode, Key
+from pynput.keyboard import Listener
 from panda_ros.pose_transform_functions import array_quat_2_pose, list_2_quaternion
 class Feedback():
     def __init__(self):
@@ -16,6 +17,10 @@ class Feedback():
         self.gripper_feedback_correction = 0
         self.spiral_feedback_correction=0
         self.pause=False
+
+        self.listener = Listener(on_press=self._on_press)
+        self.listener.start()
+
     def _on_press(self, key):
         rospy.loginfo(f"Event happened, user pressed {key}")
         # This function runs on the background and checks if a keyboard key was pressed
@@ -110,7 +115,6 @@ class Feedback():
         
         if self.gripper_feedback_correction:
             self.recorded_gripper[0, self.time_index:] = self.grip_value
-            # print(self.recorded_gripper)
 
         if self.feedback[3] != 0:
             self.faster_counter = 10

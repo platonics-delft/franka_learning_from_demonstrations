@@ -1,0 +1,4 @@
+
+position_accuracy : 0.001 #meters
+orientation_accuracy : 0.2 #degrees
+timeout_counter : 15 #steps

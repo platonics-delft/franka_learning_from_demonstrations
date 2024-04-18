@@ -49,8 +49,7 @@ Start the camera on the computer connected to the camera
 
 Send the robot to the home position. The robot will move in front of the robot and we can specify the z axis, i.e. the robot vertical height as one of the input to the script. For example, to send the robot to the home position at 0.25 m from the table, run: 
 ``` bash
-    roscd trajectory_manager/scripts/
-    python3 home.py 0.25
+    roslaunch trajectory_manager home.launch height:="0.25"
 ```
 
 Record the current template for the localization 

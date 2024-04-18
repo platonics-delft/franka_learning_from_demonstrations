@@ -2,29 +2,34 @@
 """
 Playback of trajectories and storing them into a databaseself.
 """
-from lfd_image import LfD_image
+from lfd import LfD
 from std_srvs.srv import Trigger
 import sys
 import os
 import rospy
 import numpy as np
+from panda_ros.pose_transform_functions import array_quat_2_pose
 
 if __name__ == '__main__':
-    try:
-        localization_flag = sys.argv[1]
-    except IndexError:
-        print("Usage: " + os.path.basename(__file__) + "< 0 or 1 to deactivate/activate localization >")
-        sys.exit(1)
+    localize_box = rospy.get_param('/execute_node/localize_box')
+    print("Localize box: ", localize_box)
+    lfd = LfD()
+    
+    position = rospy.get_param("position")
+    orientation = rospy.get_param("orientation") 
 
-    lfd = LfD_image()
-    lfd.home()
+    pos_array = np.array([position['x'], position['y'], position['z']])
+    quat = np.quaternion(orientation['w'], orientation['x'], orientation['y'], orientation['z'])
+    goal = array_quat_2_pose(pos_array, quat)
+    goal.header.seq = 1
+    goal.header.stamp = rospy.Time.now()
+    lfd.go_to_pose(goal)
 
-    if int(localization_flag):
+    if localize_box:
         rospy.wait_for_service('active_localizer')
         active_localizer = rospy.ServiceProxy('active_localizer', Trigger)
         resp = active_localizer()
         lfd.compute_final_transform() 
-
     try:
         
         lfd.load("peg_pick")
@@ -36,13 +41,14 @@ if __name__ == '__main__':
         lfd.load("peg_place")
         lfd.execute()
 
-        lfd.camera_correction = np.array([0,0,0])
+        lfd.camera_correction = np.array([0,0,0]) # reset camera corrections
         lfd.load("probe_pick")
         lfd.execute()
 
-        lfd.load("probe")
+        lfd.load("probe_probe")
         lfd.execute()
-        lfd.camera_correction = np.array([0,0,0])
+        
+        lfd.camera_correction = np.array([0,0,0]) # reset camera corrections
         lfd.load("probe_place")
         lfd.execute(retry_insertion_flag=1)
 
