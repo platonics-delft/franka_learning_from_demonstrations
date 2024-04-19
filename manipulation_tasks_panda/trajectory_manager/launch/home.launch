@@ -1,6 +1,10 @@
 <launch>
     <arg name="height" default="0.25" />
+    <arg name="front_offset" default="0.4" />
+    <arg name="side_offset" default="0" />
     <node name="homing_node" pkg="trajectory_manager" type="home.py" output="screen">
         <param name="height" value="$(arg height)" type="double"/> 
+        <param name="front_offset" value="$(arg front_offset)" type="double"/>
+        <param name="side_offset" value="$(arg side_offset)" type="double"/>
     </node>
 </launch>

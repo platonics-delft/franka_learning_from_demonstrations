@@ -3,6 +3,8 @@
 
   <arg name="template_name" default="template" doc="Template of the object to search during the localization"/>
 
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+  </include>
   <node name="template_node" pkg="box_localization" type="record_template.py" output="screen">
         <param name="template_name" value="$(arg template_name)" /> 
   </node>
