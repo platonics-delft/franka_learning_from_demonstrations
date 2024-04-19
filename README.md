@@ -47,19 +47,19 @@ roslaunch franka_robothon_controllers cartesian_variable_impedance_controller.la
 
 Send the robot to the home position. The robot will move in front of the robot and we can specify the z axis, i.e. the robot vertical height as one of the input to the script. For example, to send the robot to the home position at 0.25 m from the table, run: 
 ``` bash
-    roslaunch trajectory_manager home.launch height:="0.25" 
+roslaunch trajectory_manager home.launch height:="0.25" 
 ```
 
 Record the current template for the localization 
 ``` bash
-    roslaunch object_localization record_template.launch template_name:='template'
+roslaunch object_localization record_template.launch template_name:='template'
 ```
 ### Kinesthetic Demonstration 
 
 Be sure that the camera is running using: 
 
 ```bash
-roslaunch box_localization camera.launch
+roslaunch object_localization camera.launch
 ```
 
 You can now record a demonstration with:
@@ -76,14 +76,19 @@ This increases the reliability of critical picking and insertion tasks.
 
 ### Execute Learned Skill 
 
-For executing the skill you can run 
+For executing the skill you can run the active localizer in one terminal and the skill manager in another terminal. 
+
+```bash
+roslaunch object_localization box_localization.launch template:='template'
+
+```
 
 ```bash
 roslaunch skills_manager play_skill.launch localize_box:=true name_skill:='skill'
 
 ```
 
-Or you can execute more skills 
+Or you can execute more skills you can custmize the order in franka_learning_from_demonstrations/skills_manager/scripts/play_all_skills.py then launch :
 ```bash
 roslaunch skills_manager play_all_skills.launch localize_box:=true 
 ```
