@@ -1,5 +1,5 @@
 # Software Overview
-Our solution to the robothon 2023 challenge is made fully open-source to allow the community to build on top and further improve our solution. All components are stored in [Platonics Delft](https://github.com/orgs/platonics-delft). You can find all required software components and links to their installation guides below.
+Our solution to the Robothon Challenge 2023 is made fully open-source to allow the community to build on top and further improve our solution. All components are stored in [Platonics Delft](https://github.com/orgs/platonics-delft). You can find all required software components and links to their installation guides below.
 
 1. [Franka Cartesian Impedence Controller](https://github.com/platonics-delft/franka_impedance_controller)
 2. [Learning from Demonstrations](https://github.com/platonics-delft/franka_learning_from_demonstrations)
@@ -28,7 +28,7 @@ git clone --depth 1 https://github.com/platonics-delft/franka_learning_from_demo
 git clone https://github.com/platonics-delft/panda-ros-py.git
 git clone https://github.com/franzesegiovanni/quaternion_algebra.git
 git clone --depth 1 https://github.com/platonics-delft/trajectory_data.git
-pip install -r robothon23_manipulation/requirements.txt
+pip install -r franka_learning_from_demonstrations/requirements.txt
 cd ..
 catkin build
 source devel/setup.bash
@@ -40,7 +40,7 @@ Please remember to source the workspace in every terminal you open.
 ### Start the controller on the computer connected to the robot 
 
 ``` bash 
-roslaunch franka_robothon_controllers cartesian_variable_impedance_controller.launch robot_ip:=ROBOT_IP
+roslaunch franka_impedance_controller cartesian_variable_impedance_controller.launch robot_ip:=ROBOT_IP
 ```
 
 ### Send the robot to the home position and record the current template for the localization 
@@ -89,6 +89,7 @@ roslaunch skills_manager play_skill.launch localize_box:=true name_skill:='skill
 ```
 
 Or you can execute more skills you can custmize the order in franka_learning_from_demonstrations/skills_manager/scripts/play_all_skills.py then launch :
+
 ```bash
 roslaunch skills_manager play_all_skills.launch localize_box:=true 
 ```
