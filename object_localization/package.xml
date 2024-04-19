@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>box_localization</name>
+  <name>object_localization</name>
   <version>0.0.1</version>
-  <description>The box_localization package</description>
+  <description>The object_localization package</description>
 
   <maintainer email="gfranzese@tudelft.nl">giovannifranzese</maintainer>
 

@@ -5,7 +5,7 @@
 
   <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
   </include>
-  <node name="template_node" pkg="box_localization" type="record_template.py" output="screen">
+  <node name="template_node" pkg="object_localization" type="record_template.py" output="screen">
         <param name="template_name" value="$(arg template_name)" /> 
   </node>
 

@@ -1,0 +1,7 @@
+<launch>
+	<arg name="template" default="template" doc="Template of the object to search during the localization"/>
+	<rosparam command="load" file="$(find object_localization)/cfg/$(arg template)/params.yaml" />
+	<node name="localizer_node" pkg="object_localization" type="localizer_service"/>
+	<node name="active_localizer" pkg="object_localization" type="active_localizer" output="screen"/>
+	<include file="$(find object_localization)/launch/camera.launch" />
+</launch>

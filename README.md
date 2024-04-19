@@ -1,28 +1,30 @@
 # Software Overview
 Our solution to the robothon 2023 challenge is made fully open-source to allow the community to build on top and further improve our solution. All components are stored in [Platonics Delft](https://github.com/orgs/platonics-delft). You can find all required software components and links to their installation guides below.
 
-1. [Franka Cartesian Impedence Controller](https://github.com/platonics-delft/franka_control_robothon_challenge)
-2. [robothon23_manipulation](https://github.com/platonics-delft/robothon23_manipulation)
+1. [Franka Cartesian Impedence Controller](https://github.com/platonics-delft/franka_impedance_controller)
+2. [Learning from Demonstrations](https://github.com/platonics-delft/franka_learning_from_demonstrations)
 
 ### Install the controller on the computer connected to the robot 
 Follow the instructions here:
-https://github.com/platonics-delft/franka_control_robothon_challenge
+https://github.com/platonics-delft/franka_learning_from_demonstrations
 
 ### Install realsense camera and calibrate the extrinsic parameters (hand-eye calibration)
 Follow the instructions here:
 https://github.com/franzesegiovanni/franka_easy_handeye
-Be sure to add a static transfor of the camera frame with respect to the robot hand frame in box_localization/config/camera_transforms.yaml.    
+
+
+Be sure to add a static transfor of the camera frame with respect to the robot hand frame in object_localization/config/camera_transforms.yaml.    
 The parameters for position and orientation are coming from the calibration procedure. 
 
 
-## Installation of the python controller to perform learning from demonstration and box localization. You can install this also on another computer connected to the same network as the robot. 
+## Installation of the python controller to perform learning from demonstration and object localization. You can install this also on another computer connected to the same network as the robot. 
 
 ```
 mkdir robot_ws
 cd robot_ws
 mkdir src
 cd src
-git clone --depth 1 https://github.com/platonics-delft/robothon23_manipulation.git
+git clone --depth 1 https://github.com/platonics-delft/franka_learning_from_demonstrations
 git clone https://github.com/platonics-delft/panda-ros-py.git
 git clone https://github.com/franzesegiovanni/quaternion_algebra.git
 git clone --depth 1 https://github.com/platonics-delft/trajectory_data.git
@@ -32,6 +34,7 @@ catkin build
 source devel/setup.bash
 ```
 Please remember to source the workspace in every terminal you open.
+
 ## Let's start to learn some skills! 
 
 ### Start the controller on the computer connected to the robot 
@@ -42,20 +45,14 @@ roslaunch franka_robothon_controllers cartesian_variable_impedance_controller.la
 
 ### Send the robot to the home position and record the current template for the localization 
 
-Start the camera on the computer connected to the camera
-``` bash
-    roslaunch box_localization camera.launch
-```
-
 Send the robot to the home position. The robot will move in front of the robot and we can specify the z axis, i.e. the robot vertical height as one of the input to the script. For example, to send the robot to the home position at 0.25 m from the table, run: 
 ``` bash
-    roslaunch trajectory_manager home.launch height:="0.25"
+    roslaunch trajectory_manager home.launch height:="0.25" 
 ```
 
 Record the current template for the localization 
 ``` bash
-    roscd box_localization/scripts/
-    python3 record_template.py "name_of_template"
+    roslaunch object_localization record_template.launch template_name:='template'
 ```
 ### Kinesthetic Demonstration 
 
@@ -68,8 +65,7 @@ roslaunch box_localization camera.launch
 You can now record a demonstration with:
 
 ```bash
-roscd trajectory_manager/scripts
-./recording_trajectory "name of skill"
+roslaunch skills_manager record_skill.launch name_skill:='skill'
 ```
 All the trajectories are saved in the folder `trajectory_data/trajectories/` with the name you gave to the skill.
 This folder is a ros package that is used to save and load the demonstrations and save them. We used this folder to have a ligher repository and save all the demonstration in this other one. 
@@ -83,29 +79,14 @@ This increases the reliability of critical picking and insertion tasks.
 For executing the skill you can run 
 
 ```bash
-roscd trajectory_manager/scripts
-./playback_trajectory "name of skill" 0
-```
- 
-### Execute the Learned Skill with the active localizer
-If you instead do want to use the active localizer, you can then run
+roslaunch skills_manager play_skill.launch localize_box:=true name_skill:='skill'
 
-```bash
-roslaunch box_localization box_localization.launch template:="name_of_template"
-```
-Execute a single skill with the active localizer on: 
-
-```bash
-roscd trajectory_manager/scripts
-./playback_trajectory "name of skill" 1
 ```
 
-Or you can execute more skills in a row running directly the file
+Or you can execute more skills 
 ```bash
-roscd trajectory_manager/scripts
-./play_all 1
+roslaunch skills_manager play_all_skills.launch localize_box:=true 
 ```
-The number flag is to activate (1) or disactivate (0) the localizer.
 
 
 In this second case, the robot will first localize the object by trying to match the template given during demonstration, and then trasform the skill(s) in the new reference frame before executing them. 
@@ -143,8 +124,7 @@ The motivation for explicitly labeling or disabling the haptic and local camera 
 
 ### Give interactive Corrections during execution when running each skill separately and without the localizer 
 ```bash
-roscd trajectory_manager/scripts
-./playback_trajectory "name of skill" 0
+roslaunch skills_manager play_skill.launch localize_box:=false name_skill:='skill'
 ```
 
 #### Directional feedback:

@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<launch>
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+  </include>
+
+
+    <!-- Load YAML file and set parameters -->
+    <rosparam command="load" file="$(find object_localization)/config/camera_transform.yaml"  ns="camera_transform"/>
+
+
+  <!-- Launch your Python node -->
+  <node pkg="object_localization" type="static_transform_camera.py" name="camera_tf_publisher" output="screen">
+  </node>
+
+</launch>

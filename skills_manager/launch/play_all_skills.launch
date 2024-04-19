@@ -1,0 +1,7 @@
+<launch>
+    <rosparam command="load" file="$(find skills_manager)/config/settings.yaml" />
+    <arg name="localize_box" default="true" />
+    <node name="execute_node" pkg="skills_manager" type="play_all_skills.py" output="screen">
+        <param name="localize_box" value="$(arg localize_box)" type="bool"/> 
+    </node>
+</launch>

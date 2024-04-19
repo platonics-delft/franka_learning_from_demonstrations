@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(box_localization)
+project(object_localization)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -40,7 +40,7 @@ include_directories(
 )
 
 # Install the box localization package, including Python modules
-install(DIRECTORY box_localization
+install(DIRECTORY object_localization
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 

@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='box_localization',
+    name='object_localization',
     version='0.0.1',
     description='Box localization in python',
     author='Giovanni Franzese',

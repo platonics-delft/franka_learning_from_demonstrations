@@ -8,8 +8,8 @@ from panda_ros.pose_transform_functions import orientation_2_quaternion, pose_st
 
 import tf
 # from panda_ros import Transform
-# from box_localization.tranform import Transform
-from box_localization.srv import ComputeLocalization
+# from object_localization.tranform import Transform
+from object_localization.srv import ComputeLocalization
 import numpy as np
 
 from tf.transformations import euler_from_quaternion

@@ -39,8 +39,8 @@ class Template():
     
     def record(self, name='template_test'):
         rospack = rospkg.RosPack()
-        box_localization_path=rospack.get_path('box_localization')
-        self.save_dir = box_localization_path +f"/cfg/{name}"
+        object_localization_path=rospack.get_path('object_localization')
+        self.save_dir = object_localization_path +f"/cfg/{name}"
         self.params['template_path'] = f"/cfg/{name}"+"/full_image.png"
         os.mkdir(self.save_dir)
         depth=None

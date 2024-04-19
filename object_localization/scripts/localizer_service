@@ -5,7 +5,7 @@ from sensor_msgs.msg import Image
 from localizer_sift import Localizer
 import numpy as np
 
-from box_localization.srv import ComputeLocalization, ComputeLocalizationResponse
+from object_localization.srv import ComputeLocalization, ComputeLocalizationResponse
 import rospkg
 import tf
 
@@ -19,8 +19,8 @@ class LocalizationService():
         depth = rospy.get_param("depth") * 0.001
         template_path = rospy.get_param("template_path")
         rospack = rospkg.RosPack()
-        box_localization_path=rospack.get_path('box_localization')
-        template_path = box_localization_path + template_path
+        object_localization_path=rospack.get_path('object_localization')
+        template_path = object_localization_path + template_path
         self._localizer = Localizer(template_path, cropping, depth)
         self.bridge = CvBridge()
         self.image_publisher = rospy.Publisher("/SIFT_localization", Image, queue_size=10)

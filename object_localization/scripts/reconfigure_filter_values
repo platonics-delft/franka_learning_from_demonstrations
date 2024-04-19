@@ -3,7 +3,7 @@
 import rospy
 
 from dynamic_reconfigure.server import Server
-from box_localization.cfg import FilterValuesConfig
+from object_localization.cfg import FilterValuesConfig
 
 def callback(config, level):
     return config
