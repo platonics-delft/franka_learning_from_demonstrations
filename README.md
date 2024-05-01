@@ -10,6 +10,7 @@ https://github.com/platonics-delft/franka_learning_from_demonstrations
 
 ### Install realsense camera and calibrate the extrinsic parameters (hand-eye calibration)
 Follow the instructions here:
+
 https://github.com/franzesegiovanni/franka_easy_handeye
 
 
@@ -24,6 +25,7 @@ mkdir robot_ws
 cd robot_ws
 mkdir src
 cd src
+git clone --branch ros1-legacy https://github.com/IntelRealSense/realsense-ros.git
 git clone --depth 1 https://github.com/platonics-delft/franka_learning_from_demonstrations
 git clone https://github.com/platonics-delft/panda-ros-py.git
 git clone https://github.com/franzesegiovanni/quaternion_algebra.git
