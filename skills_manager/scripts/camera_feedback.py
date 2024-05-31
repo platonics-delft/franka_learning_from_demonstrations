@@ -200,3 +200,11 @@ class CameraFeedback():
         marker.color.a = 1.0
 
         self.marker_pub.publish(marker)
+
+    def visualize_frame(self, image):
+        image = image.squeeze().astype(np.uint8)
+        image = cv2.resize(image, (64, 64))
+
+        cv2.namedWindow("Demonstration", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("Demonstration", 640, 640)
+        cv2.imshow("Demonstration", image)

@@ -133,4 +133,34 @@ class Feedback():
         self.gripper_feedback_correction = 0
         self.spiral_feedback_correction = 0 
 
-    
+
+class RiskAwareFeedback(Feedback):
+    def __init__(self):
+        self.risk_flag = 0
+        self.safe_flag = 0
+        self.novelty_flag = 0
+        super().__init__()
+
+    def _on_press(self, key):
+        if key == KeyCode.from_char("r"):
+            print("risk flag enabled")
+            self.risk_flag = 1
+            self.safe_flag = 0
+        if key == KeyCode.from_char("t"):
+            print("transparent (safe) flag enabled")
+            self.safe_flag = 1
+            self.risk_flag = 0
+        if key == KeyCode.from_char("p"):
+            print("phenomenon (novelty) flag enabled")
+            self.novelty_flag = 1
+        if key == KeyCode.from_char("q"):
+            print("all risk-related flags disabled")
+            self.risk_flag = 0
+            self.safe_flag = 0
+            self.novelty_flag = 0
+
+        super()._on_press(key)
+
+if __name__ == '__main__':
+    raf = RiskAwareFeedback()
+    input("Press enter to quit")

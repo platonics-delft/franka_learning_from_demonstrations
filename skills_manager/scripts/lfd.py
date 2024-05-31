@@ -1,6 +1,18 @@
 #%%
 #!/usr/bin/env python
+import os
 import cv2
+# torch dependency temporary
+import torch
+from torch.utils.data import TensorDataset, DataLoader
+
+import video_safety_layer
+from video_safety_layer.models.risk_estimation.frame_dropping import OnlyValuableFramesDroppingPolicy
+from video_safety_layer.models.risk_estimation.risk_dataloader import RiskEstimationDataset
+from video_safety_layer.models.risk_estimation.risk_feature_extractor import StampedLatentObservationsRiskLabels
+from video_safety_layer.models.risk_estimator import MLPRiskEstimator
+from video_safety_layer.models.video_embedder import VideoEmbedder
+from video_safety_layer.utils import all_trial_names, number_of_saved_trials
 import rospy
 import math
 import numpy as np
@@ -13,7 +25,7 @@ from std_msgs.msg import Float32
 import rospkg
 from geometry_msgs.msg import PoseStamped, Pose
 from panda_ros import Panda
-from feedback import Feedback
+from feedback import Feedback, RiskAwareFeedback
 from insertion import Insertion
 from transfom import Transform 
 from panda_ros.pose_transform_functions import position_2_array, array_quat_2_pose, list_2_quaternion
@@ -69,6 +81,7 @@ class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
         self.recorded_gripper= self.grip_value
         self.recorded_img_feedback_flag = np.array([0])
         self.recorded_spiral_flag = np.array([0])
+        self.init_additional_flags()
      
         resized_img_gray=image_process(self.curr_image, self.ds_factor,  self.row_crop_pct_top , self.row_crop_pct_bot,
                                         self.col_crop_pct_left, self.col_crop_pct_right)
@@ -90,6 +103,7 @@ class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
             self.recorded_img = np.r_[self.recorded_img, resized_img_gray.reshape((1, resized_img_gray.shape[0], resized_img_gray.shape[1]))]
             self.recorded_img_feedback_flag = np.c_[self.recorded_img_feedback_flag, self.img_feedback_flag]
             self.recorded_spiral_flag = np.c_[self.recorded_spiral_flag, self.spiral_flag]
+            self.update_additional_flags()
 
             self.r.sleep()
 
@@ -131,7 +145,8 @@ class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
             print("opening gripper")
             self.move_gripper(self.recorded_gripper[0][self.time_index])
             time.sleep(0.1)
-
+        self.traj_rec_init()
+        self.safety_init(skill_name = self.filename)
 
         while self.time_index <( self.recorded_traj.shape[1]):
             quat_goal = list_2_quaternion(self.recorded_ori[:, self.time_index])
@@ -186,6 +201,9 @@ class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
             if self.time_index == self.recorded_traj.shape[1]-1:
                 break
 
+            self.traj_rec_step()
+            self.safety_step()
+
     def save(self, file='last'):
         ros_pack = rospkg.RosPack()
         self._package_path = ros_pack.get_path('trajectory_data')
@@ -211,3 +229,182 @@ class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
             self.recorded_traj, self.recorded_ori = self.transform_traj_ori(self.recorded_traj, self.recorded_ori, self.final_transform)
         
         self.filename=str(file)
+
+    def init_additional_flags(self):
+        pass
+    def update_additional_flags(self):
+        pass
+    def traj_rec_init(self):
+        pass
+    def traj_rec_step(self):
+        pass
+    def safety_init(self, *args, **kwargs):
+        pass
+    def safety_step(self):
+        pass
+
+
+class RALfD(LfD, RiskAwareFeedback):
+    
+    def init_additional_flags(self):
+        self.recorded_risk_flag = np.array([0])
+        self.recorded_safe_flag = np.array([0])
+        self.recorded_novelty_flag = np.array([0])
+
+    def update_additional_flags(self):
+        self.recorded_risk_flag = np.c_[self.recorded_risk_flag, self.risk_flag]
+        self.recorded_safe_flag = np.c_[self.recorded_safe_flag, self.safe_flag]
+        self.recorded_novelty_flag = np.c_[self.recorded_novelty_flag, self.novelty_flag]
+    
+    def save(self, file='last', risk_exec_trial=False):
+        """Saves Trajectory data to file
+
+        Args:
+            file (str, optional): _description_. Defaults to 'last'.
+            risk_exec_trial (bool, optional): Loads trajectory data from execution. Defaults to False.
+        """        
+        ros_pack = rospkg.RosPack()
+        self._package_path = ros_pack.get_path('trajectory_data')
+        
+        if risk_exec_trial:
+            n = number_of_saved_trials(file) # trials 0, ..., n-1 exists
+
+            np.savez(f"{self._package_path}/trajectories/{file}_trial_{n}.npz",
+                 traj=              self.exec_record['traj'],
+                 ori=               self.exec_record['ori'],
+                 grip=              self.exec_record['gripper'],
+                 img=               self.exec_record['img'], 
+                 img_feedback_flag= self.exec_record['img_feedback_flag'],
+                 spiral_flag=       self.exec_record['spiral_flag'],
+                 risk_flag=         self.exec_record['risk_flag'],
+                 safe_flag=         self.exec_record['safe_flag'],
+                 novelty_flag=      self.exec_record['novelty_flag'],)
+        else:
+            np.savez(self._package_path + '/trajectories/' + str(file) + '.npz',
+                 traj=self.recorded_traj,
+                 ori=self.recorded_ori,
+                 grip=self.recorded_gripper,
+                 img=self.recorded_img, 
+                 img_feedback_flag=self.recorded_img_feedback_flag,
+                 spiral_flag=self.recorded_spiral_flag,
+                 risk_flag=self.recorded_risk_flag,
+                 safe_flag=self.recorded_safe_flag,
+                 novelty_flag=self.recorded_novelty_flag,)
+    
+    def load(self, file='last'):
+        ros_pack = rospkg.RosPack()
+        self._package_path = ros_pack.get_path('trajectory_data')
+        data = np.load(self._package_path + '/trajectories/' + str(file) + '.npz')
+        self.recorded_traj = data['traj']
+        self.recorded_ori = data['ori']
+        self.recorded_gripper = data['grip']
+        self.recorded_img = data['img']
+        self.recorded_img_feedback_flag = data['img_feedback_flag']
+        self.recorded_spiral_flag = data['spiral_flag']
+        self.recorded_risk_flag = data['risk_flag']
+        self.recorded_safe_flag = data['safe_flag']
+        self.recorded_novelty_flag = data['novelty_flag']
+        if self.final_transform is not None:
+            self.recorded_traj, self.recorded_ori = self.transform_traj_ori(self.recorded_traj, self.recorded_ori, self.final_transform)
+        
+        self.filename=str(file)        
+
+
+    def traj_rec_init(self):
+        self.exec_record = {}
+        self.exec_record['traj'] = self.curr_pos
+        self.exec_record['ori'] = self.curr_ori
+        if self.gripper_width < self.grip_open_width * 0.9:
+            self.grip_value = 0
+        else:
+            self.grip_value = self.grip_open_width
+        self.exec_record['gripper']= self.grip_value
+        self.exec_record['img_feedback_flag'] = np.array([0])
+        self.exec_record['spiral_flag'] = np.array([0])
+
+        resized_img_gray=image_process(self.curr_image, self.ds_factor,  self.row_crop_pct_top , self.row_crop_pct_bot,
+                                        self.col_crop_pct_left, self.col_crop_pct_right)
+        resized_img_msg = self.bridge.cv2_to_imgmsg(resized_img_gray)
+        self.cropped_img_pub.publish(resized_img_msg)
+        self.exec_record['img'] = resized_img_gray.reshape((1, resized_img_gray.shape[0], resized_img_gray.shape[1]))
+
+        self.exec_record['risk_flag'] = np.array([0])
+        self.exec_record['safe_flag'] = np.array([0])
+        self.exec_record['novelty_flag'] = np.array([0])
+
+    def traj_rec_step(self):
+        self.exec_record['traj'] = np.c_[self.exec_record['traj'], self.curr_pos]
+        self.exec_record['ori']  = np.c_[self.exec_record['ori'], self.curr_ori]
+        self.exec_record['gripper'] = np.c_[self.exec_record['gripper'], self.grip_value]
+
+        # print("shape current image", self.curr_image.shape)
+        resized_img_gray=image_process(self.curr_image, self.ds_factor, self.row_crop_pct_top , self.row_crop_pct_bot,self.col_crop_pct_left, self.col_crop_pct_right)
+        # print("shape current image", resized_img_gray.shape)
+        resized_img_msg = self.bridge.cv2_to_imgmsg(resized_img_gray)
+        # print("shape current image 2", resized_img_gray.shape)
+        self.cropped_img_pub.publish(resized_img_msg)
+        self.exec_record['img'] = np.r_[self.exec_record['img'], resized_img_gray.reshape((1, resized_img_gray.shape[0], resized_img_gray.shape[1]))]
+        self.exec_record['img_feedback_flag'] = np.c_[self.exec_record['img_feedback_flag'], self.img_feedback_flag]
+        self.exec_record['spiral_flag'] = np.c_[self.exec_record['spiral_flag'], self.spiral_flag]
+
+        self.exec_record['risk_flag'] = np.c_[self.exec_record['risk_flag'], self.risk_flag]
+        self.exec_record['safe_flag'] = np.c_[self.exec_record['safe_flag'], self.safe_flag]
+        self.exec_record['novelty_flag'] = np.c_[self.exec_record['novelty_flag'], self.novelty_flag]
+
+    def safety_init(self, skill_name: str, latent_dim: int = 8):
+        """ Model version of risk estimator defined by latent_dim of video_embedding
+            and selected features
+
+        Args:
+            skill_name (str): 
+            latent_dim (int, optional): Video embedding latent dim. Defaults to 8.
+        """        
+        self.video_embedder = VideoEmbedder(latent_dim)
+        self.video_embedder.load_model(path=video_safety_layer.path+"/saved_models/", name=skill_name)
+    
+        self.risk_estimator = MLPRiskEstimator(
+            skill_name,
+            StampedLatentObservationsRiskLabels.xdim(latent_dim),
+        )
+        self.risk_estimator.load_model(
+            path=video_safety_layer.path + "/saved_models/"
+        )
+        self.risk_estimator.set_feature_extractor(StampedLatentObservationsRiskLabels)
+        
+
+    def safety_step(self):
+        # TODO: torch indepdendency
+        last_image_wide = self.exec_record['img'][-1]
+        last_image_square = cv2.resize(last_image_wide, (64, 64))
+        last_image_square = last_image_square[np.newaxis, np.newaxis, :, :] # (x, 1, 64, 64)
+
+        print("last_image_square")
+        print(last_image_square)
+
+        frame_number = np.array([self.time_index]) # (x, 1)
+        frame_number = frame_number[np.newaxis,np.newaxis,:]
+
+        observations = {'image': torch.tensor(last_image_square, dtype=torch.float32).cuda(), 'frame_number': torch.tensor(frame_number, dtype=torch.float32).cuda()}
+
+        pred, risk = self.risk_estimator.sample_by_observations(observations, self.video_embedder)
+
+        print(f"Risk: {pred}, {risk}")
+
+        # self.visualize_frame(self.recorded_img)
+    
+    def update_risk_model(self, skill_name):
+
+        print("Update risk aware model")
+        print(f"Skill name: {skill_name}")
+        print(f"All trials: {all_trial_names(skill_name)}")
+        dataset = RiskEstimationDataset.load_dataset(all_trial_names(skill_name), self.video_embedder, frame_dropping_policy=OnlyValuableFramesDroppingPolicy, features=StampedLatentObservationsRiskLabels)
+        print(f"Dataset shapes: {dataset.X.shape} {dataset.Y.shape}")
+        print(f"Safe Labels {len(dataset.Y[dataset.Y == 0])}, Risky Labels: {len(dataset.Y[dataset.Y == 1])}")
+
+        dataloader = DataLoader(dataset, batch_size=40, shuffle=False)
+
+        self.risk_estimator.training_loop(dataloader, epoch_print=500)
+        self.risk_estimator.save_model(path=video_safety_layer.path+"/saved_models/")
+
+        
+        
