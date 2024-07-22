@@ -22,8 +22,13 @@ def image_process(image, ds_factor, row_crop_top, row_crop_bottom, col_crop_left
     col_idx_start= int(width * col_crop_left)
     col_idx_end = int(width * col_crop_right)
 
-    resized_img = resized_img[row_idx_start:row_idx_end, col_idx_start:col_idx_end, :]
+    #resized_img = resized_img[row_idx_start:row_idx_end, col_idx_start:col_idx_end, :]
     resized_img_gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
+    # blackout everything outside the box defined by the crop percentages
+    resized_img_gray[:row_idx_start, :] = 0
+    resized_img_gray[row_idx_end:, :] = 0
+    resized_img_gray[:, :col_idx_start] = 0
+    resized_img_gray[:, col_idx_end:] = 0
     return resized_img_gray
 
 class CameraFeedback():
