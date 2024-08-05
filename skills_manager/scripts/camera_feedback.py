@@ -21,26 +21,29 @@ def image_process(image, ds_factor, row_crop_top, row_crop_bottom, col_crop_left
     row_idx_end = int(height * row_crop_bottom)
     col_idx_start= int(width * col_crop_left)
     col_idx_end = int(width * col_crop_right)
-
-    resized_img = resized_img[row_idx_start:row_idx_end, col_idx_start:col_idx_end, :]
-    resized_img_gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
+    # mask_image = np.zeros(resized_img.shape[:2])
+    resized_img_padded = np.zeros_like(resized_img)
+    resized_img_padded[row_idx_start:row_idx_end, col_idx_start:col_idx_end, :] = resized_img[row_idx_start:row_idx_end, col_idx_start:col_idx_end, :]
+    resized_img_gray = cv2.cvtColor(resized_img_padded, cv2.COLOR_BGR2GRAY)
     return resized_img_gray
 
 class CameraFeedback():
     def __init__(self) -> None:
         super(CameraFeedback, self).__init__()
         self.camera_correction=np.array([0.,0.,0.])
-        self.row_crop_pct_top = 0.
+        self.row_crop_pct_top = 0.4
         self.row_crop_pct_bot = 1.0
-        self.col_crop_pct_left = 0.0
-        self.col_crop_pct_right = 1.0
+        self.col_crop_pct_left = 0.3
+        self.col_crop_pct_right = 0.7
 
         self.ds_factor = 4 # Downsample factor
 
         self.x_dist_threshold = 2      # Thresholds to trigger feedback corrections
         self.y_dist_threshold = 2
 
-        self.num_good_matches_threshold = 6
+        self.num_good_matches_threshold = 4
+        self.pixel_diance_threshold = 20
+        self.lowe_ratio = 0.7
         self.correction_increment = 0.0005
         self.camera_param_sub=rospy.Subscriber("/camera/color/camera_info", CameraInfo, self.camera_info_callback)
 
@@ -69,8 +72,7 @@ class CameraFeedback():
     def sift_matching(self):
 
         # self.resized_img_gray=image_process(self.ds_factor,  0, 1, 0, 1)
-        self.resized_img_gray=image_process(self.curr_image, self.ds_factor,  self.row_crop_pct_top , self.row_crop_pct_bot,
-                                        self.col_crop_pct_left, self.col_crop_pct_right)
+        self.resized_img_gray=image_process(self.curr_image, self.ds_factor,  self.row_crop_pct_top , self.row_crop_pct_bot, self.col_crop_pct_left, self.col_crop_pct_right)
         # idx=np.argmin(np.linalg.norm(self.recorded_traj-(self.curr_pos).reshape(3,1),axis=0))
         idx = self.time_index - 1
 
@@ -93,23 +95,28 @@ class CameraFeedback():
         # store all the good matches as per Lowe's ratio test.
         good_feature = []
         for m, n in matches:
-            if m.distance < 0.7 * n.distance:
+
+            if m.distance < self.lowe_ratio * n.distance:
                 good_feature.append(m)
             # translate keypoints back to full source template
         cx_cy_array_ds = self.cx_cy_array / self.ds_factor
 
 
         for k in kp1:
-            k.pt = (k.pt[0] + self.col_crop_pct_left * self.resized_img_gray.shape[1] - cx_cy_array_ds[0], k.pt[1] + self.row_crop_pct_top * self.resized_img_gray.shape[0] - cx_cy_array_ds[1])
+            k.pt = (k.pt[0] - cx_cy_array_ds[0], k.pt[1] - cx_cy_array_ds[1])
         for k in kp2:
             k.pt = (k.pt[0] - cx_cy_array_ds[0], k.pt[1] - cx_cy_array_ds[1])
-        # print("after", kp1[0].pt)
 
         transform_correction = np.eye(4)
         transform_pixels = np.eye(2)
         if len(good_feature) > self.num_good_matches_threshold:
             self._src_pts = np.float32([kp1[m.queryIdx].pt for m in good_feature]).reshape(-1, 1, 2)
             self._dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_feature]).reshape(-1, 1, 2)
+
+            distances_pixel=np.linalg.norm(self._src_pts - self._dst_pts, axis=-1)
+            self._src_pts= self._src_pts[distances_pixel < self.pixel_diance_threshold]
+            self._dst_pts= self._dst_pts[distances_pixel < self.pixel_diance_threshold]
+            good_feature = [good_feature[i] for i in range(len(good_feature)) if distances_pixel[i] < 10]
 
             transform_pixels, inliers = cv2.estimateAffinePartial2D(self._src_pts, self._dst_pts)
             # print("transform", transform_pixels)
@@ -149,10 +156,10 @@ class CameraFeedback():
                 )
                 padded_template = np.zeros_like(self.resized_img_gray)
                 h, w = padded_template.shape
-                row_idx_start = int(h * self.row_crop_pct_top)
-                row_idx_end = int(h * self.row_crop_pct_bot)
-                col_idx_start= int(w * self.col_crop_pct_left)
-                col_idx_end = int(w * self.col_crop_pct_right)
+                row_idx_start = int(h * 0)
+                row_idx_end = int(h * 1)
+                col_idx_start= int(w * 0)
+                col_idx_end = int(w * 1)
                 padded_template[row_idx_start:row_idx_end, col_idx_start:col_idx_end] = self.recorded_img[idx]
                 self._annoted_image = cv2.drawMatches(padded_template, kp1, self.resized_img_gray, kp2, good_feature, None, **draw_params)
                 recorded_image_msg = self.bridge.cv2_to_imgmsg(self._annoted_image)
