@@ -10,6 +10,7 @@ https://github.com/platonics-delft/franka_learning_from_demonstrations
 
 ### Install realsense camera and calibrate the extrinsic parameters (hand-eye calibration)
 Follow the instructions here:
+
 https://github.com/franzesegiovanni/franka_easy_handeye
 
 
@@ -24,6 +25,7 @@ mkdir robot_ws
 cd robot_ws
 mkdir src
 cd src
+git clone --branch ros1-legacy https://github.com/IntelRealSense/realsense-ros.git
 git clone --depth 1 https://github.com/platonics-delft/franka_learning_from_demonstrations
 git clone https://github.com/platonics-delft/panda-ros-py.git
 git clone https://github.com/franzesegiovanni/quaternion_algebra.git
@@ -47,7 +49,7 @@ roslaunch franka_impedance_controller cartesian_variable_impedance_controller.la
 
 Send the robot to the home position. The robot will move in front of the robot and we can specify the z axis, i.e. the robot vertical height as one of the input to the script. For example, to send the robot to the home position at 0.25 m from the table, run: 
 ``` bash
-roslaunch trajectory_manager home.launch height:="0.25" 
+roslaunch skills_manager home.launch height:="0.25" 
 ```
 
 Record the current template for the localization 
