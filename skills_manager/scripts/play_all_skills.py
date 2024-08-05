@@ -44,7 +44,7 @@ if __name__ == '__main__':
         lfd.camera_correction = np.array([0,0,0]) # reset camera corrections
         lfd.load("probe_pick")
         lfd.execute()
-
+        lfd.camera_correction = np.array([0,0,0]) # reset camera corrections
         lfd.load("probe_probe")
         lfd.execute()
         
@@ -52,6 +52,7 @@ if __name__ == '__main__':
         lfd.load("probe_place")
         lfd.execute(retry_insertion_flag=1)
 
+        lfd.camera_correction = np.array([0,0,0]) # reset camera corrections
         lfd.load("wrap")
         lfd.execute()
 
