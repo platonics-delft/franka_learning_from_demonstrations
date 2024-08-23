@@ -19,6 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
   FILES
   ComputeLocalization.srv
+  GlobalRegistrationLocalizer.srv
+  SavingPointcloud.srv
 )
 
 # Make sure that your Python modules are available for import within your package

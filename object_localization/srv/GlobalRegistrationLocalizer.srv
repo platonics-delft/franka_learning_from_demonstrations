@@ -1,0 +1,6 @@
+std_msgs/Bool save_pcl
+std_msgs/String file_name
+std_msgs/String template_file_name
+---
+geometry_msgs/Pose pose
+std_msgs/Float32 compute_time

@@ -8,12 +8,13 @@ from time import perf_counter
 class GlobalRegistration():
     _source_file: str
     _target_file: str
+    _target_pcl: o3d.geometry.PointCloud
     _transformation: np.ndarray
     _logger: logging.Logger
     _voxel_size: float = 0.001
     _normal_radius: float = 0.002
     _search_radius: float = 0.005
-    _distance_threshold: float = 0.4
+    _distance_threshold: float = 0.01
     _max_nn_normal: int = 30
     _max_nn_fpfh: int = 100
     _using_icp: bool = True
@@ -21,7 +22,7 @@ class GlobalRegistration():
 
     def __init__(self, source_file: str, target_file: str):
         self._source_file = source_file
-        self._target_file = target_file
+        self.target_file = target_file
         self._transformation = np.identity(4)
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.WARN)
@@ -86,6 +87,26 @@ class GlobalRegistration():
     def target_file(self, target_file):
         self._transformation = np.identity(4)
         self._target_file = target_file
+        self._target_pcl = o3d.io.read_point_cloud(target_file)
+
+    @property
+    def source_file(self):
+        return self._source_file
+
+    @source_file.setter
+    def source_file(self, source_file):
+        self._source_file = source_file
+
+    @property
+    def target_pcl(self):
+        return self._target_pcl
+
+    @target_pcl.setter
+    def target_pcl(self, target_pcl):
+        # dummy file name
+        self._target_file = "0_0_0_0.ply"
+        self._transformation = np.identity(4)
+        self._target_pcl = target_pcl
 
 
 
@@ -115,7 +136,7 @@ class GlobalRegistration():
         self._logger.debug(":: Load two point clouds and disturb initial pose.")
 
         source = o3d.io.read_point_cloud(self._source_file)
-        target = o3d.io.read_point_cloud(self._target_file)
+        target = self._target_pcl
         if self._logger.level == logging.DEBUG:
             self.draw_registration_result(np.identity(4))
 
@@ -139,9 +160,9 @@ class GlobalRegistration():
         result_icp = o3d.pipelines.registration.registration_colored_icp(
             source,target, distance_threshold, result_ransac.transformation,
             o3d.pipelines.registration.TransformationEstimationForColoredICP(),
-            o3d.pipelines.registration.ICPConvergenceCriteria(relative_fitness=1e-6,
-                relative_rmse=1e-6,
-                max_iteration=100)
+            o3d.pipelines.registration.ICPConvergenceCriteria(relative_fitness=1e-8,
+                relative_rmse=1e-8,
+                max_iteration=1000)
         )
         return result_icp
 

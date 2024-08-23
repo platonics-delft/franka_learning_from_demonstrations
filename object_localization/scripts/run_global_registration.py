@@ -14,11 +14,13 @@ if __name__ == "__main__":
     global_registration = GlobalRegistration(sys.argv[1], sys.argv[2])
 
     global_registration.set_log_level(logging.DEBUG)
+    """
     global_registration.voxel_size = best_params['voxel_size']
     global_registration.normal_radius = best_params['normal_radius']
     global_registration.search_radius = best_params['search_radius']
     global_registration.distance_threshold = best_params['distance_threshold']
     global_registration.max_nn_normal = best_params['max_nn_normal']
     global_registration.max_nn_fpfh = best_params['max_nn_fpfh']
+    """
 
     global_registration.colored_registration()
