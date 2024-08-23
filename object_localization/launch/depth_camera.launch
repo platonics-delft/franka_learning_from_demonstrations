@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<launch>
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+    <arg name="enable_pointcloud" value="true"/>
+    <!--arg name="align_depth" value="true"/>
+    <arg name="depth_width" value="1280"/>
+    <arg name="depth_height" value="720"/>
+    <arg name="color_width" value="1280"/>
+    <arg name="color_height" value="720"/>
+    <arg name="depth_fps" value="30"/>
+    <arg name="color_fps" value="30"/-->
+    <!--arg name="clip_distance" value="0.32"/-->
+    <!--arg name="enable_sync" value="true"/-->
+    <arg name="publish_tf" value="true"/>
+    <arg name="enable_infra1" value="true"/>
+    <arg name="enable_infra2" value="true"/>
+    <arg name="json_file_path" value="/home/mspahn/misc/robothon23/playground/settings_high_density.json"/>
+  </include>
+  <node pkg="tf" type="static_transform_publisher" name="camera_tf_publisher" args="0.05521033 -0.01464011 0.06483151 0.707 0 0.707 0 panda_hand camera_link 100" output="screen"/>
+</launch>
+
