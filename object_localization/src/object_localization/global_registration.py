@@ -1,4 +1,5 @@
 import sys
+import rospy
 import open3d as o3d
 import numpy as np
 import logging
@@ -205,6 +206,8 @@ class GlobalRegistration():
         gttm_target = self.extract_ground_truth_from_file_name(self._target_file)
         self._logger.debug(gttm_target)
         source, target, source_down, target_down, source_fpfh, target_fpfh = self.prepare_dataset()
+        rospy.loginfo("Number of points in source: " + str(len(source.points)))
+        rospy.loginfo("Number of points in target: " + str(len(target.points)))
         result_ransac = self.execute_fast_global_registration(source_down, target_down,
                                                     source_fpfh, target_fpfh)
 

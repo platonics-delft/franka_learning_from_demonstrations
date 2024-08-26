@@ -5,6 +5,7 @@ import numpy as np
 # Load the point cloud
 pcd = o3d.io.read_point_cloud(sys.argv[1])
 
+print(f"Point cloud has {len(pcd.points)} points")
 # Create a visualization window
 vis = o3d.visualization.Visualizer()
 vis.create_window()

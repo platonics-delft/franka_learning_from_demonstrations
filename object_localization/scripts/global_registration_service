@@ -4,7 +4,7 @@ import rospy
 import open3d as o3d
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 import numpy as np
 import tf2_ros
 import tf
@@ -38,6 +38,7 @@ def float32_array_to_rgb(float_array):
 class GlobalRegistrationService():
     _filtered_pcd: o3d.geometry.PointCloud
     _filter_height: float = 0.075
+    _cartesian_pose: Pose = Pose()
 
     def __init__(self):
         rospy.init_node("global_registration_service")
@@ -62,6 +63,11 @@ class GlobalRegistrationService():
         
         # Subscriber for the input point cloud
         self._pcl_sub = rospy.Subscriber('/camera/depth/color/points', PointCloud2, self.pointcloud_callback)
+        self._pose_sub = rospy.Subscriber('/cartesian_pose', PoseStamped, self.pose_callback)
+
+
+    def pose_callback(self, pose_stamped: PoseStamped):
+        self._cartesian_pose = pose_stamped.pose
 
     def pointcloud_callback(self, msg):
         self._global_registration.set_target(msg)
@@ -114,16 +120,26 @@ class GlobalRegistrationService():
         filtered_pcd = down_pcd.select_by_index(ind)
 
         # remove points with z value less than 3cm
+        #self._filtered_pcd = filtered_pcd
         self._filtered_pcd = filtered_pcd.select_by_index(np.where(np.array(filtered_pcd.points)[:,2] > self._filter_height)[0])
         points = np.asarray(self._filtered_pcd.points)
         colors = np.asarray(self._filtered_pcd.colors)
 
-        threshold = 0.4  # Adjust this value to control what "close to black" means
 
-        non_black_mask = np.any(colors > threshold, axis=1)
+        black_threshold = 0.0
+        is_black = np.all(colors <= black_threshold, axis=1)
+        """
+        gray_tolerance = 0.05
+        is_gray = np.all(np.abs(colors - np.mean(colors, axis=1, keepdims=True)) < gray_tolerance, axis=1)
 
-        filtered_points = points[non_black_mask]
-        filtered_colors = colors[non_black_mask]
+        mask = ~(is_black | is_gray)
+        """
+
+        mask = ~(is_black)
+
+
+        filtered_points = points[mask]
+        filtered_colors = colors[mask]
 
         self._filtered_pcd = o3d.geometry.PointCloud()
         self._filtered_pcd.points = o3d.utility.Vector3dVector(filtered_points)
@@ -134,7 +150,11 @@ class GlobalRegistrationService():
 
     def handle_saving_pcl_request(self, request: SavingPointcloud):
         rospy.loginfo("Saving point cloud")
-        o3d.io.write_point_cloud(request.file_name.data, self._filtered_pcd)
+        height = self._cartesian_pose.position.z
+        rospy.loginfo(f"Height : {height}")
+        file_name = request.location_string.data + "_" + str(round(height*1000)) + ".ply"
+        rospy.loginfo("File name : " + file_name)
+        o3d.io.write_point_cloud(file_name, self._filtered_pcd)
         response = SavingPointcloudResponse()
         response.success.data = True
         return response
@@ -142,9 +162,16 @@ class GlobalRegistrationService():
 
     def handle_registration_request(self, request: GlobalRegistrationLocalizer):
         self._global_registration.source_file = request.template_file_name.data
+        if request.file_name.data != "":
+            height = self._cartesian_pose.position.z
+            rospy.loginfo(f"Height : {height}")
+            file_name = request.file_name.data + "_" + str(round(height*1000)) + ".ply"
+            o3d.io.write_point_cloud(file_name, self._filtered_pcd)
+        while len(self._filtered_pcd.points) < 5000:
+            rospy.logwarn("Not enough points in point cloud")
+            rospy.sleep(0.2)
+        rospy.loginfo("Pointcloud with {} points".format(len(self._filtered_pcd.points)))
         self._global_registration.target_pcl = copy.deepcopy(self._filtered_pcd)
-        if request.save_pcl.data:
-            o3d.io.write_point_cloud(request.file_name.data, self._filtered_pcd)
         t0 = perf_counter()
         self._global_registration.colored_registration()
         t1 = perf_counter()

@@ -20,6 +20,7 @@ add_service_files(
   FILES
   ComputeLocalization.srv
   GlobalRegistrationLocalizer.srv
+  IterativeRegistrationLocalizer.srv
   SavingPointcloud.srv
 )
 

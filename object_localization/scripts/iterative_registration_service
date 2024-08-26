@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+
+import rospy
+from geometry_msgs.msg import PoseStamped, Pose
+import numpy as np
+import copy
+
+from object_localization.srv import IterativeRegistrationLocalizer, IterativeRegistrationLocalizerResponse, IterativeRegistrationLocalizerRequest, SavingPointcloudRequest
+from object_localization.srv import GlobalRegistrationLocalizer, GlobalRegistrationLocalizerResponse, GlobalRegistrationLocalizerRequest
+from object_localization.srv import SavingPointcloud, SavingPointcloudResponse
+from panda_ros.panda import Panda
+from panda_ros.pose_transform_functions import pose_2_transformation, transformation_2_pose
+
+def closest_value(value, value_list):
+    return min(value_list, key=lambda x: abs(x - value))
+
+
+class IterativeRegistrationService():
+    """
+    This class is a ROS service that uses a global registration service to
+    iteratively move the robot to a defined pose with respect to the object.
+    The called service is the global_registration_service and returns a 
+    displacement pose of the object with respect to the world frame.
+    """
+
+    _cartesian_pose: Pose = Pose()
+    _initial_height: float = 0.31
+    _final_height: float = 0.15
+
+    def __init__(self):
+        rospy.init_node("iterative_registration_service")
+        self._rate = rospy.Rate(10)
+        self.establish_ros_connections()
+        self._panda = Panda()
+        self._start_pose = PoseStamped()
+        self._start_pose.pose.position.x = 0.5
+        self._start_pose.pose.position.y = 0.0
+        self._start_pose.pose.position.z = self._initial_height
+        self._start_pose.pose.orientation.x = 1.0
+        self._start_tf = pose_2_transformation(self._start_pose.pose)
+        self.bring_robot_to_pose(self._start_pose)
+
+    def establish_ros_connections(self):
+        rospy.Service("iterative_registration_service", IterativeRegistrationLocalizer, self.handle_registration_request)
+        rospy.wait_for_service("global_registration_service")
+        self._global_registration_service = rospy.ServiceProxy("global_registration_service", GlobalRegistrationLocalizer)
+        rospy.wait_for_service("saving_pointcloud")
+        self._saving_pointcloud_service = rospy.ServiceProxy("saving_pointcloud", SavingPointcloud)
+        self._pose_sub = rospy.Subscriber("/cartesian_pose", PoseStamped, self.cartesian_pose_callback)
+
+    def cartesian_pose_callback(self, pose: PoseStamped):
+        self._cartesian_pose = pose.pose
+
+    def is_robot_at_pose(self, pose: Pose):
+        return np.allclose([pose.position.x, pose.position.y, pose.position.z], [self._cartesian_pose.position.x, self._cartesian_pose.position.y, self._cartesian_pose.position.z], atol=0.04)
+
+    def bring_robot_to_pose(self, pose: PoseStamped):
+        rospy.loginfo("Moving robot to computed pose")
+        self._panda.set_stiffness(3000, 3000, 3000, 40, 40, 40, 0)
+        self._panda.go_to_pose(pose, interp_dist= 0.002, interp_dist_polar=0.002)
+        self._panda.offset_compensator(10)
+
+        while not self.is_robot_at_pose(pose.pose):
+            rospy.loginfo(f"Robot going to pose")
+            self._rate.sleep()
+        rospy.loginfo("Robot moved to computed pose")
+
+
+    def handle_registration_request(self, request: IterativeRegistrationLocalizer):
+        """
+        This function handles the registration request by calling the global_registration_service
+        and moving the robot to the computed pose.
+        """
+        steps = request.steps.data
+        response = IterativeRegistrationLocalizerResponse()
+        step_size = (self._initial_height - self._final_height) / (steps-1)
+        rospy.loginfo(f"Step size: {step_size}")
+        goal_matrix = copy.deepcopy(self._start_tf)
+        for i in range(steps):
+            goal_pose = transformation_2_pose(goal_matrix)
+            goal_pose.pose.position.z = self._initial_height - (step_size * i)
+            self.bring_robot_to_pose(goal_pose)
+            rospy.loginfo(f"Step {i+1} of {steps}")
+            rospy.loginfo("Starting iterative registration")
+            rospy.loginfo("Calling global registration service")
+            # Call global registration service
+            global_registration_request = GlobalRegistrationLocalizerRequest()
+            global_registration_request.file_name.data = '0_0_111'
+            height = self._cartesian_pose.position.z
+            # round height to 150,250,350 mm
+            height = closest_value(height*1000, [150, 250, 350])
+            template_name = f"../data/0_0_0_{height}.ply"
+            rospy.loginfo(f"Template name: {template_name}")
+            global_registration_request.template_file_name.data = template_name
+            global_registration_response: GlobalRegistrationLocalizerResponse = self._global_registration_service(global_registration_request)
+            rospy.loginfo(global_registration_response.pose)
+            rospy.loginfo(f"Global registration service called in {global_registration_response.compute_time.data} seconds")
+            tf_matrix = pose_2_transformation(global_registration_response.pose)
+            goal_matrix = np.dot(tf_matrix, self._start_tf)
+            response.pose = global_registration_response.pose
+        final_pose = transformation_2_pose(goal_matrix)
+        final_pose.pose.position.z = self._final_height
+        self.bring_robot_to_pose(final_pose)
+        return response
+
+    def run(self):
+        while not rospy.is_shutdown():
+            self._rate.sleep()
+
+
+if __name__ == "__main__":
+    service = IterativeRegistrationService()
+    try:
+        service.run()
+    except rospy.ROSInterruptException:
+        pass
+
