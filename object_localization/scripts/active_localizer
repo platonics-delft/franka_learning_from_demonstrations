@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from panda_ros.pose_transform_functions import list_2_quaternion, array_quat_2_pose
+from panda_ros.pose_transform_functions import list_2_quaternion, pos_quat_2_pose_st
 from std_srvs.srv import Trigger, TriggerResponse
 from sensor_msgs.msg import Image
 from panda_ros import Panda
-from panda_ros.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion, transform_pos_ori
+from panda_ros.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, pos_quat_2_pose_st, transformation_2_pose, transform_pose, list_2_quaternion, transform_pos_ori
 
 import tf
 # from panda_ros import Transform
@@ -39,7 +39,7 @@ class ActiveLocalizerNode():
 
         self.position_accuracy = 0.001
         self.orientation_accuracy=0.2 *(np.pi/180)
-        self.timeout_counter = 15
+        self.timeout_counter_max = 2
 
 
     def image_callback(self, img):
@@ -60,7 +60,7 @@ class ActiveLocalizerNode():
                 self._rate.sleep()
             position = self._panda.curr_pos
             ori = list_2_quaternion(self._panda.curr_ori)
-            home_pose = array_quat_2_pose(position, ori)
+            home_pose = pos_quat_2_pose_st(position, ori)
             try:
                 resp = self.compute_box_tf(self._img)
                 box_tf = resp.pose
@@ -86,8 +86,9 @@ class ActiveLocalizerNode():
             rospy.loginfo("Finished go to.")
             pos_error = np.linalg.norm(xy_yaw[:2])
             yaw_error = abs(xy_yaw[2])
+            print("Localization step : ", self.timeout_counter)
             print(f"position error {pos_error}, yaw error {yaw_error}")
-            if (pos_error < self.position_accuracy and yaw_error < self.orientation_accuracy or self.timeout_counter > self.timeout_counter):
+            if (pos_error < self.position_accuracy and yaw_error < self.orientation_accuracy) or self.timeout_counter > self.timeout_counter_max:
                 final_resp.message = f"Finished localization, final error: {pos_error + yaw_error}"
                 final_resp.success = True
                 print(final_resp.message)

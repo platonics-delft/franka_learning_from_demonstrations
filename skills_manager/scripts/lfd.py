@@ -16,7 +16,7 @@ from panda_ros import Panda
 from feedback import Feedback
 from insertion import Insertion
 from transfom import Transform 
-from panda_ros.pose_transform_functions import position_2_array, array_quat_2_pose, list_2_quaternion
+from panda_ros.pose_transform_functions import position_2_array, pos_quat_2_pose_st, list_2_quaternion
 class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
     def __init__(self):
         rospy.init_node("learning_node")
@@ -116,7 +116,7 @@ class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
         start = PoseStamped()
 
         quat_start = list_2_quaternion(self.recorded_ori[:, 0])
-        start = array_quat_2_pose(self.recorded_traj[:, 0], quat_start)
+        start = pos_quat_2_pose_st(self.recorded_traj[:, 0], quat_start)
          
         self.go_to_pose(start)
         self.set_stiffness(3000, 3000, 3000, 40, 40, 40, 0)
@@ -135,7 +135,7 @@ class LfD(Panda, Feedback, Insertion, Transform, CameraFeedback):
 
         while self.time_index <( self.recorded_traj.shape[1]):
             quat_goal = list_2_quaternion(self.recorded_ori[:, self.time_index])
-            goal = array_quat_2_pose(self.recorded_traj[:, self.time_index] + self.camera_correction, quat_goal)
+            goal = pos_quat_2_pose_st(self.recorded_traj[:, self.time_index] + self.camera_correction, quat_goal)
             goal.header.seq = 1
             goal.header.stamp = rospy.Time.now()
             goal.header.frame_id = 'panda_link0'

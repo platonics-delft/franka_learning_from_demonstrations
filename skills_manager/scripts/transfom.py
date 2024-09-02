@@ -2,7 +2,7 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import PoseStamped
 import tf
-from panda_ros.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, array_quat_2_pose, transformation_2_pose, transform_pose, list_2_quaternion, transform_pos_ori
+from panda_ros.pose_transform_functions import orientation_2_quaternion, pose_st_2_transformation, position_2_array, pos_quat_2_pose_st, transformation_2_pose, transform_pose, list_2_quaternion, transform_pos_ori
 
 class Transform():
     def __init__(self):
@@ -22,7 +22,7 @@ class Transform():
         orientation = rospy.get_param("orientation")
         trans_home_pose = np.array([position['x'], position['y'], position['z']])
         quat_home_pose = np.quaternion(orientation['w'], orientation['x'], orientation['y'], orientation['z'])
-        self.home_pose = array_quat_2_pose(trans_home_pose, quat_home_pose)
+        self.home_pose = pos_quat_2_pose_st(trans_home_pose, quat_home_pose)
         transform_new = pose_st_2_transformation(self.curr_pose)
         home_pose_matrix = pose_st_2_transformation(self.home_pose)
         print('transform_new', transform_new)

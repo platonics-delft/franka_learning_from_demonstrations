@@ -2,7 +2,7 @@ import rospy
 import numpy as np
 from pynput.keyboard import KeyCode, Key
 from pynput.keyboard import Listener
-from panda_ros.pose_transform_functions import array_quat_2_pose, list_2_quaternion
+from panda_ros.pose_transform_functions import pos_quat_2_pose_st, list_2_quaternion
 class Feedback():
     def __init__(self):
         super(Feedback, self).__init__()
@@ -75,7 +75,7 @@ class Feedback():
 
         if key == KeyCode.from_char('m'):    
             quat_goal = list_2_quaternion(self.curr_ori)
-            goal = array_quat_2_pose(self.curr_pos, quat_goal)
+            goal = pos_quat_2_pose_st(self.curr_pos, quat_goal)
             self.goal_pub.publish(goal)
             self.set_stiffness(0, 0, 0, 50, 50, 50, 0)
             print("higher rotatioal stiffness")

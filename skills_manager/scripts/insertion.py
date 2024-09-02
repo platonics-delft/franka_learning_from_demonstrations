@@ -1,4 +1,4 @@
-from panda_ros.pose_transform_functions import orientation_2_quaternion, position_2_array, array_quat_2_pose
+from panda_ros.pose_transform_functions import orientation_2_quaternion, position_2_array, pos_quat_2_pose_st
 import numpy as np
 import rospy 
 class Insertion():
@@ -14,7 +14,7 @@ class Insertion():
         goal_init = position_2_array(goal.pose.position)
         pos_init = self.curr_pos
         ori_quat = orientation_2_quaternion(goal.pose.orientation)
-        goal_pose = array_quat_2_pose(goal_init, ori_quat)
+        goal_pose = pos_quat_2_pose_st(goal_init, ori_quat)
         time= 0
         spiral_success = False
         self.set_stiffness(4000, 4000, 1000, 30, 30, 30, 0) # get more compliant in z direction
